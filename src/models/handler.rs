@@ -1,5 +1,3 @@
-use std::env;
-
 use serenity::async_trait;
 use serenity::framework::standard::CommandResult;
 use serenity::framework::standard::macros::{command, group};
