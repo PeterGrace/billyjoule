@@ -1,0 +1,10 @@
+version: "2"
+
+services:
+  bot:
+    build: .
+    env_file:
+      billyjoule.env
+    ports:
+      - 59090:9090
+
