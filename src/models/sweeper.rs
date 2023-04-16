@@ -4,6 +4,7 @@ use serenity::futures::{Stream, TryStreamExt};
 use serenity::http::Http;
 use serenity::model::channel::Message;
 use serenity::model::id::{ChannelId, MessageId};
+use serenity::prelude::TypeMapKey;
 use std::future;
 use std::ops::Deref;
 use std::pin::Pin;
@@ -42,10 +43,16 @@ pub(crate) struct Sweeper {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Stats {
-    started: DateTime<Utc>,
-    runs: u32,
-    last_run: u32,
-    all_runs: u32,
+    pub(crate) started: DateTime<Utc>,
+    pub(crate) runs: u32,
+    pub(crate) last_run: u32,
+    pub(crate) all_runs: u32,
+}
+
+pub(crate) struct StatsReceiver;
+
+impl TypeMapKey for StatsReceiver {
+    type Value = watch::Receiver<Stats>;
 }
 
 impl Sweeper {
@@ -87,6 +94,7 @@ impl Sweeper {
             .message_stream()
             .try_take_while(|message| future::ready(Ok(message.timestamp.deref() < &cutoff_time)))
             .try_for_each(|message| {
+                // Make the borrow checker happy.
                 let message_id = message.id;
                 let channel_id = self.channel_id;
                 let http = self.http.clone();
@@ -129,6 +137,8 @@ impl Sweeper {
             .expect("failed to update stats");
     }
 
+    /// Returns a stream of messages for the sweeper's channel. The stream takes care of paginating
+    /// the response.
     fn message_stream(&self) -> Pin<Box<impl Stream<Item = serenity::Result<Message>> + '_>> {
         Box::pin(try_stream! {
             let mut cursor = MessageId(0);
@@ -145,6 +155,7 @@ impl Sweeper {
         })
     }
 
+    /// Load a page of messages from discord and sort them by timestamp.
     async fn load_messages(&self, cursor: impl Into<MessageId>) -> serenity::Result<Vec<Message>> {
         let mut messages = self
             .channel_id

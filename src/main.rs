@@ -11,7 +11,7 @@ use tracing::error;
 use models::handler::Handler;
 use models::handler::GENERAL_GROUP;
 
-use crate::models::sweeper::{run_sweeper, Sweeper};
+use crate::models::sweeper::{run_sweeper, StatsReceiver, Sweeper};
 
 mod models;
 
@@ -55,7 +55,7 @@ async fn main() {
     );
 
     // Init handler.
-    let (handler, ready) = Handler::new(stats);
+    let (handler, ready) = Handler::new(args.guild_id.into());
 
     // Start sweeper.
     tokio::spawn(run_sweeper(sweeper, ready));
@@ -71,6 +71,10 @@ async fn main() {
         .event_handler(handler)
         .await
         .expect("Err creating client");
+
+    let mut data = client.data.write().await;
+    data.insert::<StatsReceiver>(stats);
+    drop(data);
 
     if let Err(why) = client.start().await {
         error!("Client error: {:?}", why);
