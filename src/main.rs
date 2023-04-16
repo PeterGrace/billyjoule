@@ -23,10 +23,19 @@ struct Args {
     #[arg(long)]
     channel_id: u64,
 
-    #[arg(long, default_value = "1d", value_parser = parse_duration)]
+    #[arg(
+        long,
+        help = "The age of a message before it's deleted", 
+        default_value = "1d", 
+        value_parser = parse_duration,
+    )]
     max_message_age: Duration,
 
-    #[arg(long, default_value = "false")]
+    #[arg(
+        long,
+        help = "When set, does not actually delete messages",
+        default_value = "false"
+    )]
     dry_run: bool,
 }
 
