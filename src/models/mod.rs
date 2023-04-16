@@ -1,2 +1,2 @@
 pub(crate) mod handler;
-mod sweeper;
+pub(crate) mod sweeper;
