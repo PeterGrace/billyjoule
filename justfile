@@ -18,6 +18,7 @@ image:
   -t {{registry}}/{{image}}:latest \
   -t {{registry}}/{{image}}:{{shortcommit}} \
   -t {{registry}}/{{image}}:{{commit}} \
+  -t {{registry}}/{{image}}:{{tag}} \
   .
 
 release-patch:
