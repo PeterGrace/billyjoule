@@ -124,7 +124,7 @@ async fn version(ctx: &Context, msg: &Message) -> CommandResult {
     msg.reply(
         ctx,
         format!(
-            "Running v:{}, hash:{}",
+            "Running v:`{}`, hash:`{}`",
             env!("CARGO_PKG_VERSION"),
             env!("GIT_HASH")
         ),
