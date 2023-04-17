@@ -111,8 +111,7 @@ async fn get_stats(ctx: &Context) -> Option<Stats> {
 // command groups
 
 #[group]
-#[commands(ping)]
-#[commands(version)]
+#[commands(ping, version)]
 struct General;
 
 #[command]
@@ -122,6 +121,14 @@ async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
 }
 #[command]
 async fn version(ctx: &Context, msg: &Message) -> CommandResult {
-    msg.reply(ctx, format!("Running v:{}, hash:{}",env!("CARGO_PKG_VERSION"), env!("GIT_HASH"))).await?;
+    msg.reply(
+        ctx,
+        format!(
+            "Running v:{}, hash:{}",
+            env!("CARGO_PKG_VERSION"),
+            env!("GIT_HASH")
+        ),
+    )
+    .await?;
     Ok(())
 }
