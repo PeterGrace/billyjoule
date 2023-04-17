@@ -75,7 +75,11 @@ async fn main() {
     // Start sweeper.
     tokio::spawn(run_sweeper(sweeper, ready));
 
-    let intents = GatewayIntents::GUILDS | GatewayIntents::GUILD_MESSAGES;
+    let intents = GatewayIntents::GUILDS 
+          | GatewayIntents::GUILD_MESSAGES
+          | GatewayIntents::DIRECT_MESSAGES
+          | GatewayIntents::MESSAGE_CONTENT;
+
 
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("."))

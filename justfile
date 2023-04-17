@@ -21,6 +21,13 @@ image:
   -t {{registry}}/{{image}}:{{tag}} \
   .
 
+image-experimental:
+  docker buildx build --no-cache --push --platform linux/amd64,linux/arm64/v8 \
+  -t {{registry}}/{{image}}:{{shortcommit}} \
+  -t {{registry}}/{{image}}:{{commit}} \
+  -t {{registry}}/{{image}}:experimental \
+  .
+
 release-patch:
   cargo release --no-publish --no-verify patch --execute
 release-minor:
