@@ -6,7 +6,7 @@ use duration_string::DurationString;
 use serenity::framework::standard::StandardFramework;
 use serenity::http::Http;
 use serenity::prelude::*;
-use tracing::error;
+use tracing::{error,info};
 
 use models::handler::Handler;
 use models::handler::GENERAL_GROUP;
@@ -16,11 +16,16 @@ use crate::models::sweeper::{run_sweeper, StatsReceiver, Sweeper};
 mod models;
 
 #[derive(Debug, Parser)]
+#[command(name = "billyjoule")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
 struct Args {
-    #[arg(long)]
+    #[arg(
+        long,
+        env="GUILD_ID")]
     guild_id: u64,
 
-    #[arg(long)]
+    #[arg(long,
+        env="CHANNEL_ID")]
     channel_id: u64,
 
     #[arg(
@@ -53,6 +58,7 @@ async fn main() {
     let token =
         env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN must be set in environment to execute");
 
+    info!("Initializing v:{}, hash:{}",env!("CARGO_PKG_VERSION"), env!("GIT_HASH"));
     // Init sweeper.
     let args = Args::parse();
     let http = Http::new(&token);

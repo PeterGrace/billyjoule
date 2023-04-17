@@ -1,0 +1,40 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: billyjoule
+  name: billyjoule
+  namespace: billyjoule
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: billyjoule
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: billyjoule
+    spec:
+      containers:
+      - name: billyjoule
+        env:
+        - name: RUST_LOG
+          value: INFO,tracing=off
+        envFrom:
+        - secretRef:
+            name: billyjoule-env
+        image: IMAGENAME:TAG
+        command:
+          - /opt/billyjoule/billyjoule
+        ports:
+        - containerPort: 9090
+          name: http
+          protocol: TCP
+        resources:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 256m
+            memory: 1Gi
+      serviceAccountName: billyjoule
