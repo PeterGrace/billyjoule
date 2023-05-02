@@ -108,6 +108,11 @@ impl Sweeper {
                         return Ok(());
                     }
 
+                    if message.pinned {
+                        debug!(%message_id, "message is pinned, skipping.");
+                        return Ok(());
+                    }
+
                     if !dry_run {
                         channel_id.delete_message(http, message_id).await.map(|_| {
                             success_count.fetch_add(1, Ordering::SeqCst);
