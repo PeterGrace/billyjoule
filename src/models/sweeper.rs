@@ -12,8 +12,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
-use tracing::{debug, error, info};
 use tracing::log::warn;
+use tracing::{debug, error, info};
 
 pub(crate) async fn run_sweeper(mut sweeper: Sweeper, mut ready: mpsc::Receiver<()>) {
     ready.recv().await.expect("failed to receive ready signal");
@@ -126,10 +126,6 @@ impl Sweeper {
                                 }
                             }
                             success_count.fetch_add(1, Ordering::SeqCst);
-
-                            //channel_id.delete_message(http, message_id).await.map(|_| {
-                            //    success_count.fetch_add(1, Ordering::SeqCst);
-                            //})
                         },
                     }
                     Ok(())
@@ -141,7 +137,7 @@ impl Sweeper {
         let success_count = success_count.load(Ordering::SeqCst);
         match res {
             Ok(()) => {
-                info!(count = success_count,"Successfully swept messages.");
+                info!(count = success_count, "Successfully swept messages.");
             }
             Err(error) => {
                 error!(%error, "Failed to sweep messages");
@@ -151,7 +147,11 @@ impl Sweeper {
         let vecvec = delete_message_ids.lock().unwrap().to_vec().clone();
         // bulk delete only accepts 2-100 messages.
         if vecvec.len() > 1 {
-            if let Err(e) = self.channel_id.delete_messages(self.http.clone(), vecvec.clone()).await {
+            if let Err(e) = self
+                .channel_id
+                .delete_messages(self.http.clone(), vecvec.clone())
+                .await
+            {
                 error!("Unable to delete messages: {:#?}", e);
             }
         }
