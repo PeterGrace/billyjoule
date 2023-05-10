@@ -144,12 +144,12 @@ impl Sweeper {
             }
         }
 
-        let vecvec = delete_message_ids.lock().unwrap().to_vec().clone();
+        let messages_to_delete = delete_message_ids.lock().unwrap().to_vec().clone();
         // bulk delete only accepts 2-100 messages.
-        if vecvec.len() > 1 {
+        if messages_to_delete.len() > 1 {
             if let Err(e) = self
                 .channel_id
-                .delete_messages(self.http.clone(), vecvec.clone())
+                .delete_messages(self.http.clone(), messages_to_delete.clone())
                 .await
             {
                 error!("Unable to delete messages: {:#?}", e);
