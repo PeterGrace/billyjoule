@@ -12,8 +12,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
-use tracing::log::warn;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 pub(crate) async fn run_sweeper(mut sweeper: Sweeper, mut ready: mpsc::Receiver<()>) {
     ready.recv().await.expect("failed to receive ready signal");
