@@ -18,14 +18,15 @@ use tracing::{debug, error, info};
 // event handler
 pub struct Handler {
     guild_id: GuildId,
+    log_channel_id: Option<String>,
     ready: mpsc::Sender<()>,
 }
 
 impl Handler {
-    pub(crate) fn new(guild_id: GuildId) -> (Self, mpsc::Receiver<()>) {
+    pub(crate) fn new(guild_id: GuildId, log_channel_id: Option<String>) -> (Self, mpsc::Receiver<()>) {
         // Using `mpsc` over `oneshot` so we can send a signal without a &mut self.
         let (ready, rx) = mpsc::channel(1);
-        (Handler { guild_id, ready }, rx)
+        (Handler { guild_id, log_channel_id, ready }, rx)
     }
 }
 
@@ -34,11 +35,13 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
         info!("{} is connected!", ready.user.name);
 
-        let channel = ChannelId(1097501574630219786);
-        let init_message= MessageBuilder::new()
-            .push(format!("La, da, dee dee dah: v:{}, hash:{}",env!("CARGO_PKG_VERSION"), env!("GIT_HASH")))
-            .build();
-        channel.say(&ctx.http, init_message).await;
+        if self.log_channel_id.is_some() {
+            let channel = ChannelId(self.log_channel_id.clone().unwrap().parse().unwrap());
+            let init_message= MessageBuilder::new()
+                .push(format!("La, da, dee dee dah: v:{}, hash:{}",env!("CARGO_PKG_VERSION"), env!("GIT_HASH")))
+                .build();
+            channel.say(&ctx.http, init_message).await;
+        };
         // Configure stats command.
         self.guild_id
             .set_application_commands(&ctx.http, |builder| {

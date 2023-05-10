@@ -59,6 +59,11 @@ async fn main() {
     let token =
         env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN must be set in environment to execute");
 
+    let log_channel_id = match env::var("LOG_CHANNEL_ID") {
+        Ok(s) => Some(s),
+        Err(_) => None
+    };
+
     info!("Initializing v:{}, hash:{}",env!("CARGO_PKG_VERSION"), env!("GIT_HASH"));
     // Init sweeper.
     let args = Args::parse();
@@ -71,7 +76,7 @@ async fn main() {
     );
 
     // Init handler.
-    let (handler, ready) = Handler::new(args.guild_id.into());
+    let (handler, ready) = Handler::new(args.guild_id.into(),log_channel_id);
 
     // Start sweeper.
     tokio::spawn(run_sweeper(sweeper, ready));
