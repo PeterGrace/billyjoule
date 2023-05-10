@@ -9,10 +9,11 @@ use std::future;
 use std::ops::Deref;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 use tracing::{debug, error, info};
+use tracing::log::warn;
 
 pub(crate) async fn run_sweeper(mut sweeper: Sweeper, mut ready: mpsc::Receiver<()>) {
     ready.recv().await.expect("failed to receive ready signal");
@@ -88,49 +89,70 @@ impl Sweeper {
         let cutoff_time = Utc::now() - self.max_message_age;
 
         let success_count = Arc::new(AtomicU32::new(0));
-
+        let delete_message_ids: Arc<Mutex<Vec<MessageId>>> = Arc::new(Mutex::new(vec![]));
         info!(%cutoff_time, "Sweeping expired messages.");
+
         let res = self
             .message_stream()
             .try_take_while(|message| future::ready(Ok(message.timestamp.deref() < &cutoff_time)))
             .try_for_each(|message| {
                 // Make the borrow checker happy.
                 let message_id = message.id;
-                let channel_id = self.channel_id;
-                let http = self.http.clone();
                 let dry_run = self.dry_run;
                 let success_count = success_count.clone();
+                let delete_message_ids = delete_message_ids.clone();
 
                 async move {
                     debug!(dry_run, %message_id,  "Found expired message.");
-
-                    if dry_run {
-                        return Ok(());
-                    }
 
                     if message.pinned {
                         debug!(%message_id, "message is pinned, skipping.");
                         return Ok(());
                     }
 
-                    if !dry_run {
-                        channel_id.delete_message(http, message_id).await.map(|_| {
+                    // if we're in dry run mode, we're skipping the message.
+                    match dry_run {
+                        true => {}
+                        false => {
+                            match delete_message_ids.lock() {
+                                Ok(mut vec) => {
+                                    if vec.len() < 100 {
+                                        // we can only delete up to 100 bulk messages at a time.
+                                        vec.push(message_id)
+                                    }
+                                },
+                                Err(e) => {
+                                    warn!("Unable to lock message id array, message may remain after sweep: {:?}", e);
+                                }
+                            }
                             success_count.fetch_add(1, Ordering::SeqCst);
-                        })
-                    } else {
-                        Ok(())
+
+                            //channel_id.delete_message(http, message_id).await.map(|_| {
+                            //    success_count.fetch_add(1, Ordering::SeqCst);
+                            //})
+                        },
                     }
+                    Ok(())
                 }
+
             })
             .await;
 
         let success_count = success_count.load(Ordering::SeqCst);
         match res {
             Ok(()) => {
-                info!(count = success_count, "Successfully swept messages.");
+                info!(count = success_count,"Successfully swept messages.");
             }
             Err(error) => {
                 error!(%error, "Failed to sweep messages");
+            }
+        }
+
+        let vecvec = delete_message_ids.lock().unwrap().to_vec().clone();
+        // bulk delete only accepts 2-100 messages.
+        if vecvec.len() > 1 {
+            if let Err(e) = self.channel_id.delete_messages(self.http.clone(), vecvec.clone()).await {
+                error!("Unable to delete messages: {:#?}", e);
             }
         }
 

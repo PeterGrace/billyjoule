@@ -8,9 +8,10 @@ use serenity::model::application::interaction::Interaction;
 use serenity::model::application::interaction::Interaction::ApplicationCommand;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
-use serenity::model::id::GuildId;
+use serenity::model::id::{ChannelId, GuildId};
 use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::*;
+use serenity::utils::MessageBuilder;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
@@ -33,6 +34,11 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
         info!("{} is connected!", ready.user.name);
 
+        let channel = ChannelId(1097501574630219786);
+        let init_message= MessageBuilder::new()
+            .push(format!("La, da, dee dee dah: v:{}, hash:{}",env!("CARGO_PKG_VERSION"), env!("GIT_HASH")))
+            .build();
+        channel.say(&ctx.http, init_message).await;
         // Configure stats command.
         self.guild_id
             .set_application_commands(&ctx.http, |builder| {

@@ -2,7 +2,12 @@ version: "2"
 
 services:
   bot:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command:
+      - /opt/billyjoule/billyjoule
+      - --max-message-age=20h
     env_file:
       billyjoule.env
     ports:

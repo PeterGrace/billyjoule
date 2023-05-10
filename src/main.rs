@@ -52,6 +52,7 @@ fn parse_duration(arg: &str) -> Result<Duration, String> {
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     // setup logging
+    dotenv::from_path("./billyjoule.env");
     tracing_subscriber::fmt::init();
 
     // get token
