@@ -8,23 +8,35 @@ use serenity::model::application::interaction::Interaction;
 use serenity::model::application::interaction::Interaction::ApplicationCommand;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
-use serenity::model::id::GuildId;
+use serenity::model::id::{ChannelId, GuildId};
 use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::*;
+use serenity::utils::MessageBuilder;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
 // event handler
 pub struct Handler {
     guild_id: GuildId,
+    log_channel_id: Option<String>,
     ready: mpsc::Sender<()>,
 }
 
 impl Handler {
-    pub(crate) fn new(guild_id: GuildId) -> (Self, mpsc::Receiver<()>) {
+    pub(crate) fn new(
+        guild_id: GuildId,
+        log_channel_id: Option<String>,
+    ) -> (Self, mpsc::Receiver<()>) {
         // Using `mpsc` over `oneshot` so we can send a signal without a &mut self.
         let (ready, rx) = mpsc::channel(1);
-        (Handler { guild_id, ready }, rx)
+        (
+            Handler {
+                guild_id,
+                log_channel_id,
+                ready,
+            },
+            rx,
+        )
     }
 }
 
@@ -33,6 +45,17 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
         info!("{} is connected!", ready.user.name);
 
+        if self.log_channel_id.is_some() {
+            let channel = ChannelId(self.log_channel_id.clone().unwrap().parse().unwrap());
+            let init_message = MessageBuilder::new()
+                .push(format!(
+                    "System is ready.   v:{}, hash:{}",
+                    env!("CARGO_PKG_VERSION"),
+                    env!("GIT_HASH")
+                ))
+                .build();
+            channel.say(&ctx.http, init_message).await;
+        };
         // Configure stats command.
         self.guild_id
             .set_application_commands(&ctx.http, |builder| {
@@ -77,6 +100,8 @@ impl EventHandler for Handler {
                                 .content(":wave: Hey there, here are some sweeper stats")
                                 .embed(|embed| {
                                     embed
+                                        .field("Version", env!("CARGO_PKG_VERSION"), false)
+                                        .field("GitHash", env!("GIT_HASH"), false)
                                         .field("Uptime", human_duration(&uptime), false)
                                         .field("Runs", format!("Ran {} times", stats.runs), false)
                                         .field(

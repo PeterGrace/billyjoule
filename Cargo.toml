@@ -9,6 +9,7 @@ edition = "2021"
 async-stream = "0.3.5"
 chrono = "0.4.24"
 clap = { version = "4.2.2", features = ["derive","env"] }
+dotenv = "0.15.0"
 duration-string = "0.3.0"
 futures = "0.3.28"
 human-duration = "0.1.0"

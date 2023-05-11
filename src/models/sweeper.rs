@@ -1,5 +1,6 @@
 use async_stream::try_stream;
 use chrono::{DateTime, Duration, Utc};
+use futures::stream::StreamExt;
 use serenity::futures::{Stream, TryStreamExt};
 use serenity::http::Http;
 use serenity::model::channel::Message;
@@ -9,10 +10,10 @@ use std::future;
 use std::ops::Deref;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 pub(crate) async fn run_sweeper(mut sweeper: Sweeper, mut ready: mpsc::Receiver<()>) {
     ready.recv().await.expect("failed to receive ready signal");
@@ -88,49 +89,47 @@ impl Sweeper {
         let cutoff_time = Utc::now() - self.max_message_age;
 
         let success_count = Arc::new(AtomicU32::new(0));
-
+        let delete_message_ids: Arc<Mutex<Vec<MessageId>>> = Arc::new(Mutex::new(vec![]));
         info!(%cutoff_time, "Sweeping expired messages.");
-        let res = self
+
+        let message_ids: Vec<MessageId> = self
             .message_stream()
             .try_take_while(|message| future::ready(Ok(message.timestamp.deref() < &cutoff_time)))
-            .try_for_each(|message| {
-                // Make the borrow checker happy.
-                let message_id = message.id;
-                let channel_id = self.channel_id;
-                let http = self.http.clone();
+            .filter_map(|m_result| async  {
+                let message = m_result.unwrap();
                 let dry_run = self.dry_run;
                 let success_count = success_count.clone();
-
-                async move {
-                    debug!(dry_run, %message_id,  "Found expired message.");
-
-                    if dry_run {
-                        return Ok(());
+                match dry_run {
+                    true => {
+                        debug!(%message.id, "Skipped adding message to delete queue due to dry run.");
+                        None
                     }
-
-                    if message.pinned {
-                        debug!(%message_id, "message is pinned, skipping.");
-                        return Ok(());
-                    }
-
-                    if !dry_run {
-                        channel_id.delete_message(http, message_id).await.map(|_| {
-                            success_count.fetch_add(1, Ordering::SeqCst);
-                        })
-                    } else {
-                        Ok(())
+                    false => {
+                        let success_count = success_count.clone();
+                        success_count.fetch_add(1, Ordering::SeqCst);
+                        if message.pinned {
+                            debug!(%message.id, "message is pinned, skipping delete.");
+                            return None;
+                        }
+                        Some(message.id)
                     }
                 }
             })
+            .collect()
             .await;
 
         let success_count = success_count.load(Ordering::SeqCst);
-        match res {
-            Ok(()) => {
-                info!(count = success_count, "Successfully swept messages.");
-            }
-            Err(error) => {
-                error!(%error, "Failed to sweep messages");
+
+        let total_messages = message_ids.len();
+        debug!("Preparing to issue deletes for {total_messages} messages.");
+        for chunk in message_ids.chunks(100) {
+            debug!("Issuing chunk delete for {} messages.", chunk.len());
+            if let Err(e) = self
+                .channel_id
+                .delete_messages(self.http.clone(), chunk)
+                .await
+            {
+                error!("Unable to delete messages: {:#?}", e);
             }
         }
 
