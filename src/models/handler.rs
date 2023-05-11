@@ -23,10 +23,20 @@ pub struct Handler {
 }
 
 impl Handler {
-    pub(crate) fn new(guild_id: GuildId, log_channel_id: Option<String>) -> (Self, mpsc::Receiver<()>) {
+    pub(crate) fn new(
+        guild_id: GuildId,
+        log_channel_id: Option<String>,
+    ) -> (Self, mpsc::Receiver<()>) {
         // Using `mpsc` over `oneshot` so we can send a signal without a &mut self.
         let (ready, rx) = mpsc::channel(1);
-        (Handler { guild_id, log_channel_id, ready }, rx)
+        (
+            Handler {
+                guild_id,
+                log_channel_id,
+                ready,
+            },
+            rx,
+        )
     }
 }
 
@@ -37,8 +47,12 @@ impl EventHandler for Handler {
 
         if self.log_channel_id.is_some() {
             let channel = ChannelId(self.log_channel_id.clone().unwrap().parse().unwrap());
-            let init_message= MessageBuilder::new()
-                .push(format!("System is ready.   v:{}, hash:{}",env!("CARGO_PKG_VERSION"), env!("GIT_HASH")))
+            let init_message = MessageBuilder::new()
+                .push(format!(
+                    "System is ready.   v:{}, hash:{}",
+                    env!("CARGO_PKG_VERSION"),
+                    env!("GIT_HASH")
+                ))
                 .build();
             channel.say(&ctx.http, init_message).await;
         };
@@ -86,8 +100,8 @@ impl EventHandler for Handler {
                                 .content(":wave: Hey there, here are some sweeper stats")
                                 .embed(|embed| {
                                     embed
-                                        .field("Version", env!("CARGO_PKG_VERSION"), false
-                                        .field("GitHash", env!("GIT_HASH"), false
+                                        .field("Version", env!("CARGO_PKG_VERSION"), false)
+                                        .field("GitHash", env!("GIT_HASH"), false)
                                         .field("Uptime", human_duration(&uptime), false)
                                         .field("Runs", format!("Ran {} times", stats.runs), false)
                                         .field(

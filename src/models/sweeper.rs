@@ -1,5 +1,6 @@
 use async_stream::try_stream;
 use chrono::{DateTime, Duration, Utc};
+use futures::stream::StreamExt;
 use serenity::futures::{Stream, TryStreamExt};
 use serenity::http::Http;
 use serenity::model::channel::Message;
@@ -91,64 +92,41 @@ impl Sweeper {
         let delete_message_ids: Arc<Mutex<Vec<MessageId>>> = Arc::new(Mutex::new(vec![]));
         info!(%cutoff_time, "Sweeping expired messages.");
 
-        let res = self
+        let message_ids: Vec<MessageId> = self
             .message_stream()
             .try_take_while(|message| future::ready(Ok(message.timestamp.deref() < &cutoff_time)))
-            .try_for_each(|message| {
-                // Make the borrow checker happy.
-                let message_id = message.id;
+            .filter_map(|m_result| async  {
+                let message = m_result.unwrap();
                 let dry_run = self.dry_run;
                 let success_count = success_count.clone();
-                let delete_message_ids = delete_message_ids.clone();
-
-                async move {
-                    debug!(dry_run, %message_id,  "Found expired message.");
-
-                    if message.pinned {
-                        debug!(%message_id, "message is pinned, skipping.");
-                        return Ok(());
+                match dry_run {
+                    true => {
+                        debug!(%message.id, "Skipped adding message to delete queue due to dry run.");
+                        None
                     }
-
-                    // if we're in dry run mode, we're skipping the message.
-                    match dry_run {
-                        true => {}
-                        false => {
-                            match delete_message_ids.lock() {
-                                Ok(mut vec) => {
-                                    if vec.len() < 100 {
-                                        // we can only delete up to 100 bulk messages at a time.
-                                        vec.push(message_id)
-                                    }
-                                },
-                                Err(e) => {
-                                    warn!("Unable to lock message id array, message may remain after sweep: {:?}", e);
-                                }
-                            }
-                            success_count.fetch_add(1, Ordering::SeqCst);
-                        },
+                    false => {
+                        let success_count = success_count.clone();
+                        success_count.fetch_add(1, Ordering::SeqCst);
+                        if message.pinned {
+                            debug!(%message.id, "message is pinned, skipping delete.");
+                            return None;
+                        }
+                        Some(message.id)
                     }
-                    Ok(())
                 }
-
             })
+            .collect()
             .await;
 
         let success_count = success_count.load(Ordering::SeqCst);
-        match res {
-            Ok(()) => {
-                info!(count = success_count, "Successfully swept messages.");
-            }
-            Err(error) => {
-                error!(%error, "Failed to sweep messages");
-            }
-        }
 
-        let messages_to_delete = delete_message_ids.lock().unwrap().to_vec().clone();
-        // bulk delete only accepts 2-100 messages.
-        if messages_to_delete.len() > 1 {
+        let total_messages = message_ids.len();
+        debug!("Preparing to issue deletes for {total_messages} messages.");
+        for chunk in message_ids.chunks(100) {
+            debug!("Issuing chunk delete for {} messages.", chunk.len());
             if let Err(e) = self
                 .channel_id
-                .delete_messages(self.http.clone(), messages_to_delete.clone())
+                .delete_messages(self.http.clone(), chunk)
                 .await
             {
                 error!("Unable to delete messages: {:#?}", e);

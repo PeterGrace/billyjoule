@@ -6,7 +6,7 @@ use duration_string::DurationString;
 use serenity::framework::standard::StandardFramework;
 use serenity::http::Http;
 use serenity::prelude::*;
-use tracing::{error,info};
+use tracing::{error, info};
 
 use models::handler::Handler;
 use models::handler::GENERAL_GROUP;
@@ -19,19 +19,16 @@ mod models;
 #[command(name = "billyjoule")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 struct Args {
-    #[arg(
-        long,
-        env="GUILD_ID")]
+    #[arg(long, env = "GUILD_ID")]
     guild_id: u64,
 
-    #[arg(long,
-        env="CHANNEL_ID")]
+    #[arg(long, env = "CHANNEL_ID")]
     channel_id: u64,
 
     #[arg(
         long,
-        help = "The age of a message before it's deleted", 
-        default_value = "1d", 
+        help = "The age of a message before it's deleted",
+        default_value = "1d",
         value_parser = parse_duration,
     )]
     max_message_age: Duration,
@@ -61,10 +58,14 @@ async fn main() {
 
     let log_channel_id = match env::var("LOG_CHANNEL_ID") {
         Ok(s) => Some(s),
-        Err(_) => None
+        Err(_) => None,
     };
 
-    info!("Initializing v:{}, hash:{}",env!("CARGO_PKG_VERSION"), env!("GIT_HASH"));
+    info!(
+        "Initializing v:{}, hash:{}",
+        env!("CARGO_PKG_VERSION"),
+        env!("GIT_HASH")
+    );
     // Init sweeper.
     let args = Args::parse();
     let http = Http::new(&token);
@@ -76,16 +77,15 @@ async fn main() {
     );
 
     // Init handler.
-    let (handler, ready) = Handler::new(args.guild_id.into(),log_channel_id);
+    let (handler, ready) = Handler::new(args.guild_id.into(), log_channel_id);
 
     // Start sweeper.
     tokio::spawn(run_sweeper(sweeper, ready));
 
-    let intents = GatewayIntents::GUILDS 
-          | GatewayIntents::GUILD_MESSAGES
-          | GatewayIntents::DIRECT_MESSAGES
-          | GatewayIntents::MESSAGE_CONTENT;
-
+    let intents = GatewayIntents::GUILDS
+        | GatewayIntents::GUILD_MESSAGES
+        | GatewayIntents::DIRECT_MESSAGES
+        | GatewayIntents::MESSAGE_CONTENT;
 
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("."))
