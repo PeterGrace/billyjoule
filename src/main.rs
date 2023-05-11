@@ -56,10 +56,7 @@ async fn main() {
     let token =
         env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN must be set in environment to execute");
 
-    let log_channel_id = match env::var("LOG_CHANNEL_ID") {
-        Ok(s) => Some(s),
-        Err(_) => None,
-    };
+    let log_channel_id = env::var("LOG_CHANNEL_ID").ok();
 
     info!(
         "Initializing v:{}, hash:{}",
