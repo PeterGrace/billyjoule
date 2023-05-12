@@ -1,3 +1,4 @@
+use crate::controllers::upload_emoji;
 use crate::models::sweeper::{Stats, StatsReceiver};
 use chrono::Utc;
 use human_duration::human_duration;
@@ -136,7 +137,7 @@ async fn get_stats(ctx: &Context) -> Option<Stats> {
 // command groups
 
 #[group]
-#[commands(ping, version)]
+#[commands(ping, import_emoji, version)]
 struct General;
 
 #[command]
@@ -144,6 +145,21 @@ async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
     msg.reply(ctx, "Pong!").await?;
     Ok(())
 }
+
+#[command]
+async fn import_emoji(ctx: &Context, msg: &Message) -> CommandResult {
+    match upload_emoji(&msg.content).await {
+        Ok(_) => {
+            msg.reply(ctx, format!("response-goes-here")).await?;
+            Ok(())
+        }
+        Err(e) => {
+            error!("couldn't upload emoji for {}: {}", msg.content, e);
+            Ok(())
+        }
+    }
+}
+
 #[command]
 async fn version(ctx: &Context, msg: &Message) -> CommandResult {
     msg.reply(
