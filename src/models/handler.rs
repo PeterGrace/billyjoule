@@ -72,7 +72,7 @@ impl EventHandler for Handler {
                     env!("GIT_HASH")
                 ))
                 .build();
-            //channel.say(&ctx.http, init_message).await;
+            channel.say(&ctx.http, init_message).await;
         };
         // Configure stats command.
         self.guild_id
