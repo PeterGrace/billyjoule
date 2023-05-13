@@ -1,4 +1,3 @@
-use crate::controllers::upload_emoji;
 use crate::models::sweeper::{Stats, StatsReceiver};
 use chrono::Utc;
 use human_duration::human_duration;
@@ -269,29 +268,13 @@ async fn do_emoji(ctx: &Context, command: ApplicationCommandInteraction) {
 // command groups
 
 #[group]
-#[commands(ping, import_emoji, version)]
+#[commands(ping, version)]
 struct General;
 
 #[command]
 async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
     msg.reply(ctx, "Pong!").await?;
     Ok(())
-}
-
-#[command]
-async fn import_emoji(ctx: &Context, msg: &Message) -> CommandResult {
-    match upload_emoji(&msg.content).await {
-        Ok(_) => {
-            msg.reply(ctx, format!("response-goes-here")).await?;
-            Ok(())
-        }
-        Err(e) => {
-            let content = format!("couldn't upload emoji for {}: {}", msg.content, e);
-            error!("{content}");
-            //msg.reply(ctx, &content).await?;
-            Ok(())
-        }
-    }
 }
 
 #[command]

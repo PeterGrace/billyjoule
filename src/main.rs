@@ -13,7 +13,6 @@ use models::handler::GENERAL_GROUP;
 
 use crate::models::sweeper::{run_sweeper, StatsReceiver, Sweeper};
 
-mod controllers;
 mod models;
 
 #[derive(Debug, Parser)]
