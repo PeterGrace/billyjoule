@@ -6,14 +6,28 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0.71"
 async-stream = "0.3.5"
+aws-region = "0.25.3"
+base64 = "0.21.0"
 chrono = "0.4.24"
 clap = { version = "4.2.2", features = ["derive","env"] }
 dotenv = "0.15.0"
 duration-string = "0.3.0"
 futures = "0.3.28"
 human-duration = "0.1.0"
+
 serenity = "0.11.5"
 tokio = { version = "1.27.0", features = ["tracing", "macros", "rt-multi-thread"] }
 tracing = "0.1.37"
 tracing-subscriber = "0.3.16"
+
+[dependencies.rust-s3]
+version ="0.33.0"
+default-features = false
+features = ["fail-on-err", "futures", "minidom", "reqwest", "tags", "tokio", "tokio-rustls-tls", "tokio-stream", "with-tokio"]
+
+[dependencies.aws-creds]
+version = "0.35.0"
+default-features = false
+features = [ "attohttpc", "http-credentials", "rustls-tls" ]
