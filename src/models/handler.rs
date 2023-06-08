@@ -14,6 +14,7 @@ use serenity::model::application::interaction::Interaction::ApplicationCommand;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
 use serenity::model::id::{ChannelId, GuildId};
+use serenity::model::permissions::Permissions;
 use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::*;
 use std::env;
@@ -84,6 +85,7 @@ impl EventHandler for Handler {
                     .create_application_command(|command| {
                         command
                             .name(EMOJI_COMMAND)
+                            .default_member_permissions(Permissions::MANAGE_EMOJIS_AND_STICKERS)
                             .description(EMOJI_DESCRIPTION)
                             .create_option(|option| {
                                 option
