@@ -2,8 +2,6 @@ use crate::models::sweeper::{Stats, StatsReceiver};
 use chrono::Utc;
 use human_duration::human_duration;
 use serenity::async_trait;
-use serenity::builder::CreateApplicationCommandOption;
-use serenity::builder::CreateApplicationCommands;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::CommandResult;
 use serenity::model::application::interaction::application_command::{
@@ -19,11 +17,9 @@ use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::*;
 use std::env;
 
-use anyhow::{bail, Result};
-use base64::prelude::*;
 use s3::creds::Credentials;
 use s3::{Bucket, Region};
-use serenity::model::prelude::command::{CommandOption, CommandOptionType};
+use serenity::model::prelude::command::{CommandOptionType};
 use serenity::utils::MessageBuilder;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
@@ -73,7 +69,9 @@ impl EventHandler for Handler {
                     env!("GIT_HASH")
                 ))
                 .build();
-            channel.say(&ctx.http, init_message).await;
+            if let Err(e) = channel.say(&ctx.http, init_message).await {
+                error!("Couldn't use channel.say in eventhandler: {e}")
+            };
         };
         // Configure stats command.
         self.guild_id
@@ -262,7 +260,7 @@ async fn do_emoji(ctx: &Context, command: ApplicationCommandInteraction) {
     let image_data = match bucket.get_object(&file_list[0].contents[0].key).await {
         Ok(rs) => rs,
         Err(e) => {
-            error!("Could not retrieve image from s3 bucket");
+            error!("Could not retrieve image from s3 bucket: {e}");
             return;
         }
     };
@@ -274,7 +272,7 @@ async fn do_emoji(ctx: &Context, command: ApplicationCommandInteraction) {
         .create_emoji(&ctx.http, &emoji_name_sanitized, &image_str)
         .await
     {
-        Ok(t) => {
+        Ok(_) => {
             if let Err(e) = command
                 .create_interaction_response(&ctx.http, |resp| {
                     resp.kind(InteractionResponseType::ChannelMessageWithSource)
