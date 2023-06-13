@@ -169,6 +169,24 @@ async fn do_stats(ctx: &Context, command: ApplicationCommandInteraction) {
         error!(error = %error, "Failed to respond to status command.");
     }
 }
+async fn err_response(ctx: &Context, command: &ApplicationCommandInteraction, error_message: &str) {
+    debug!("pre-response-send");
+    if let Err(e) = command
+        .create_interaction_response(&ctx.http, |resp| {
+            resp.kind(InteractionResponseType::ChannelMessageWithSource)
+                .interaction_response_data(|message| {
+                    message.content(format!(
+                        "**error**: {}",
+                        error_message
+                    ))
+                })
+        })
+        .await
+    {
+        error!("Couldn't send err_response: {}", e);
+    }
+    debug!("post-response-send");
+}
 
 async fn do_emoji(ctx: &Context, command: ApplicationCommandInteraction) {
     let guild = match command.guild_id {
@@ -195,10 +213,12 @@ async fn do_emoji(ctx: &Context, command: ApplicationCommandInteraction) {
     let s3_endpoint = env::var("EMOJI_S3_ENDPOINT").ok();
     let s3_bucket = env::var("EMOJI_S3_BUCKET").ok();
     if s3_endpoint.is_none() {
+        err_response(&ctx, &command, "bot is misconfigured: missing s3 endpoint def").await;
         error!("need an s3 endpoint for emojis");
         return;
     }
     if s3_bucket.is_none() {
+        err_response(&ctx, &command, "bot is misconfigured: missing s3 bucket def").await;
         error!("need a bucket name for emojis");
         return;
     }
@@ -223,10 +243,21 @@ async fn do_emoji(ctx: &Context, command: ApplicationCommandInteraction) {
     {
         Ok(s) => s,
         Err(e) => {
+            err_response(&ctx, &command, "couldn't list s3 contents. maybe wrong bucket or endpoint.").await;
             error!("{}", e);
             return;
         }
     };
+    if file_list.len() == 0 {
+        err_response(&ctx, &command, "couldn't list s3 contents. maybe wrong bucket or endpoint.").await;
+        error!("emoji not found.");
+        return;
+    }
+    if file_list[0].contents.len() == 0 {
+        err_response(&ctx, &command, format!("emoji {} not found!",emoji_name).as_str()).await;
+        error!("emoji not found.");
+        return;
+    }
 
     let image_data = match bucket.get_object(&file_list[0].contents[0].key).await {
         Ok(rs) => rs,
