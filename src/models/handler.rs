@@ -161,7 +161,7 @@ async fn do_stats(ctx: &Context, command: ApplicationCommandInteraction) {
                                     format!("Cleaned up {} messages.", stats.all_runs),
                                     false,
                                 )
-                        })
+                        }).ephemeral(true)
                 })
         })
         .await
@@ -178,7 +178,7 @@ async fn err_response(ctx: &Context, command: &ApplicationCommandInteraction, er
                     message.content(format!(
                         "**error**: {}",
                         error_message
-                    ))
+                    )).ephemeral(true)
                 })
         })
         .await

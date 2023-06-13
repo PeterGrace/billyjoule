@@ -35,7 +35,8 @@ release-minor:
 release-major:
   cargo release --no-publish --no-verify major --execute
 
-test: build-x86_64
+test: 
+  cargo build
   docker-compose rm -f
   docker-compose build --force --no-cache
   docker-compose up
