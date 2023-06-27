@@ -210,6 +210,8 @@ pub async fn do_emoji_indexing(url: String) -> anyhow::Result<()> {
         bail!("need a bucket name for emojis");
 
     }
+    let Some(url) = env::var("MEILISEARCH_HOST").ok()
+    else { bail!("MEILISEARCH_HOST not defined") };
 
     let bucket = Bucket::new(
         &s3_bucket.unwrap(),
@@ -230,23 +232,23 @@ pub async fn do_emoji_indexing(url: String) -> anyhow::Result<()> {
     };
 
 
+        let meili_key = env::var("MEILISEARCH_KEY").ok();
+        let client: meilisearch_sdk::client::Client = meili::new(url, meili_key);
+        let emoji = client.index("emoji");
 
-    let client :meilisearch_sdk::client::Client = meili::new(url, None::<String>);
-    let emoji = client.index("emoji");
-
-    let mut search_data: Vec<EmojiSearch> = vec![];
-    filenames.iter().for_each(|f| {
-        if is_valid_meili_key(f) {
-            search_data.push(EmojiSearch{name: f.to_string()});
-        };
-    });
-    debug!("PGPGPG About to add documents: {}", search_data.len());
-    if let Err(e) =  emoji.add_documents(
-        &search_data,
-        Some("name")).await {
+        let mut search_data: Vec<EmojiSearch> = vec![];
+        filenames.iter().for_each(|f| {
+            if is_valid_meili_key(f) {
+                search_data.push(EmojiSearch { name: f.to_string() });
+            };
+        });
+        debug!("About to index {} emojis.", search_data.len());
+        if let Err(e) = emoji.add_documents(
+            &search_data,
+            Some("name")).await {
             bail!("Unable to index: {e}");
         };
-    debug!("PGPGPG After add documents");
+
     Ok(())
 }
 
