@@ -11,9 +11,11 @@ use s3::{Bucket, Region};
 use crate::commands::err_response;
 use meilisearch_sdk::client::Client as meili;
 use meilisearch_sdk::client::*;
-use anyhow::{Result, anyhow};
+use anyhow::{Result, bail};
 
 use std::env;
+
+const VALID_EMOJI: &str = r#""#;
 
 pub async fn do_emoji(ctx: &Context, command: ApplicationCommandInteraction) {
     let guild = match command.guild_id {
@@ -201,13 +203,80 @@ pub struct EmojiAutocompleteOption {
 
 
 pub async fn do_emoji_indexing(url: String) -> anyhow::Result<()> {
+    let s3_endpoint = env::var("EMOJI_S3_ENDPOINT").ok();
+    let s3_bucket = env::var("EMOJI_S3_BUCKET").ok();
+    if s3_endpoint.is_none() {
+        bail!("need an s3 endpoint for emojis");
+    }
+    if s3_bucket.is_none() {
+        bail!("need a bucket name for emojis");
+
+    }
+
+    let bucket = Bucket::new(
+        &s3_bucket.unwrap(),
+        Region::Custom {
+            region: "us-east-1".to_owned(),
+            endpoint: s3_endpoint.unwrap(),
+        },
+        Credentials::default().unwrap(),
+    )
+        .unwrap()
+        .with_path_style();
+
+    let filenames = match get_emoji_directory_names(bucket).await {
+        Some(f) => f,
+        None => {
+            bail!("No files found to index.");
+        }
+    };
+
+
+
     let client :meilisearch_sdk::client::Client = meili::new(url, None::<String>);
     let emoji = client.index("emoji");
 
-    if let Err(e) =  emoji.add_documents(&[
-        EmojiSearch { name: String::from("petetest") }
-    ], Some("name")).await {
-            anyhow!("Unable to index: {e}");
+    let mut search_data: Vec<EmojiSearch> = vec![];
+    filenames.iter().for_each(|f| {
+        search_data.push(EmojiSearch{name: f.to_string()});
+    });
+    debug!("PGPGPG About to add documents: {}", search_data.len());
+    if let Err(e) =  emoji.add_documents(
+        &search_data,
+        Some("name")).await {
+            bail!("Unable to index: {e}");
         };
+    debug!("PGPGPG After add documents");
     Ok(())
+}
+
+async fn get_emoji_directory_names(bucket :Bucket) -> Option<Vec<String>> {
+
+    let mut filenames: Vec<String> = vec![];
+    debug!("Preparing to get file list from s3 bucket");
+    let file_list = match bucket
+        .list(
+            String::default(),
+            Some("/".to_owned()),
+        )
+        .await
+    {
+        Ok(s) => s,
+        Err(e) => {
+            error!("{}", e);
+            return None;
+        }
+    };
+    if file_list.len() > 0 {
+        let prefixes = file_list[0].clone().common_prefixes;
+        if prefixes.is_some() {
+            prefixes.unwrap().iter().for_each(|dir| {
+                let dirname = dir.prefix.clone();
+                filenames.push(dirname.strip_suffix("/").unwrap().to_string());
+            });
+        }
+        Some(filenames)
+    } else {
+        None
+    }
 }
