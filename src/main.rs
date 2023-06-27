@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate tracing;
+
 use std::env;
 
 use chrono::Duration;
@@ -6,14 +9,16 @@ use duration_string::DurationString;
 use serenity::framework::standard::StandardFramework;
 use serenity::http::Http;
 use serenity::prelude::*;
-use tracing::{error, info};
+use futures::executor::block_on;
 
 use models::handler::Handler;
 use models::handler::GENERAL_GROUP;
 
 use crate::models::sweeper::{run_sweeper, StatsReceiver, Sweeper};
+use crate::commands::emoji::do_emoji_indexing;
 
 mod models;
+mod commands;
 
 #[derive(Debug, Parser)]
 #[command(name = "billyjoule")]
@@ -58,6 +63,15 @@ async fn main() {
 
     let log_channel_id = env::var("LOG_CHANNEL_ID").ok();
 
+    let meili_server = env::var("MEILISEARCH_URL").ok();
+
+    if let Some(url) = meili_server {
+        info!("reindexing emoji folder");
+        if let Err(e) = do_emoji_indexing(url).await {
+            error!("failure to index emoji");
+        }
+    }
+
     info!(
         "Initializing v:{}, hash:{}",
         env!("CARGO_PKG_VERSION"),
@@ -88,7 +102,7 @@ async fn main() {
         .configure(|c| c.prefix("."))
         .group(&GENERAL_GROUP);
 
-    let mut client = Client::builder(&token, intents)
+    let mut client = serenity::Client::builder(&token, intents)
         .framework(framework)
         .event_handler(handler)
         .await

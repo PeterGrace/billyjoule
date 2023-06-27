@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    reloader.stakater.com/auto: "true"
+  labels:
+    app.kubernetes.io/name: meilisearch
+  name: meilisearch
+  namespace: billyjoule
+spec:
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+    type: RollingUpdate
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: meilisearch
+  serviceName: meilisearch-headless
+  template:
+    metadata:
+      annotations:
+        reloader.stakater.com/auto: "true"
+      labels:
+        app.kubernetes.io/name: meilisearch
+    spec:
+      containers:
+      - name: meilisearch
+        env:
+          - name: MEILI_LOG_LEVEL
+            value: DEBUG
+        envFrom:
+          - secretRef:
+              name: meilisearch-key
+        image: getmeili/meilisearch:v1.2
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 7700
+          protocol: TCP
+        resources: {}
+        volumeMounts:
+        - mountPath: /meili_data
+          name: meilisearch-data
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: billyjoule
+      serviceAccountName: billyjoule
+      terminationGracePeriodSeconds: 60
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      creationTimestamp: null
+      name: meilisearch-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+      storageClassName: iscsi-delete
+      volumeMode: Filesystem

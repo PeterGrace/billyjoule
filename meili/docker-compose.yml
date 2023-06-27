@@ -1,0 +1,9 @@
+version: "2"
+
+services:
+  meili:
+    image: getmeili/meilisearch:v1.2
+    volumes:
+      - /home/pgrace/repos/billyjoule/meili/data:/meili_data
+    ports:
+      - 7700:7700
