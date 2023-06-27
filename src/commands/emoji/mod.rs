@@ -15,8 +15,6 @@ use anyhow::{Result, bail};
 
 use std::env;
 
-const VALID_EMOJI: &str = r#""#;
-
 pub async fn do_emoji(ctx: &Context, command: ApplicationCommandInteraction) {
     let guild = match command.guild_id {
         Some(g) => g,
@@ -238,7 +236,9 @@ pub async fn do_emoji_indexing(url: String) -> anyhow::Result<()> {
 
     let mut search_data: Vec<EmojiSearch> = vec![];
     filenames.iter().for_each(|f| {
-        search_data.push(EmojiSearch{name: f.to_string()});
+        if is_valid_meili_key(f) {
+            search_data.push(EmojiSearch{name: f.to_string()});
+        };
     });
     debug!("PGPGPG About to add documents: {}", search_data.len());
     if let Err(e) =  emoji.add_documents(
@@ -252,9 +252,9 @@ pub async fn do_emoji_indexing(url: String) -> anyhow::Result<()> {
 
 async fn get_emoji_directory_names(bucket :Bucket) -> Option<Vec<String>> {
 
-    let mut filenames: Vec<String> = vec![];
+    let mut dirnames: Vec<String> = vec![];
     debug!("Preparing to get file list from s3 bucket");
-    let file_list = match bucket
+    let list_result = match bucket
         .list(
             String::default(),
             Some("/".to_owned()),
@@ -267,16 +267,28 @@ async fn get_emoji_directory_names(bucket :Bucket) -> Option<Vec<String>> {
             return None;
         }
     };
-    if file_list.len() > 0 {
-        let prefixes = file_list[0].clone().common_prefixes;
+    if list_result.len() > 0 {
+        let prefixes = list_result[0].clone().common_prefixes;
         if prefixes.is_some() {
             prefixes.unwrap().iter().for_each(|dir| {
                 let dirname = dir.prefix.clone();
-                filenames.push(dirname.strip_suffix("/").unwrap().to_string());
+                dirnames.push(dirname.strip_suffix("/").unwrap().to_string());
             });
         }
-        Some(filenames)
+        Some(dirnames)
     } else {
         None
     }
+}
+
+fn is_valid_meili_key(key: &String) -> bool {
+
+    // attempt to strip out hyphens and underscores.
+    let tmp = key.replace(&['-','_'],"");
+    // now, if the string is just alphanumeric, good.
+    if tmp.chars().all(char::is_alphanumeric) {
+        return true
+    }
+    // there were still chars that weren't alphanumeric after we removed hyphens.
+    false
 }
