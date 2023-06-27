@@ -1,4 +1,4 @@
-use serenity::json::{json};
+use serenity::json::{json, Value};
 use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::*;
 use serenity::model::application::interaction::application_command::{
@@ -11,7 +11,7 @@ use s3::{Bucket, Region};
 use crate::commands::err_response;
 use meilisearch_sdk::client::Client as meili;
 use meilisearch_sdk::client::*;
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 
 use std::env;
 
@@ -133,16 +133,50 @@ pub async fn do_emoji_autocomplete(ctx: &Context, command: AutocompleteInteracti
         .filter(|opt| opt.name == "emoji")
         .collect();
     let emoji_name = match &emoji_option[0].value {
-        Some(s) => s,
+        Some(s) => s.as_str().unwrap(),
         None => {
             error!("Did not receive an emoji name.");
             return;
         }
     };
-    let choices = json!([
-        {"name":"vote","value":"vote"},
-        {"name":"dickbutt","value":"dickbutt"}
-    ]);
+    let meili_server = env::var("MEILISEARCH_URL").ok();
+    let meili_key = env::var("MEILISEARCH_KEY").ok();
+    let mut results: Vec<Value> = vec![];
+    if let Some(meili_url) = meili_server {
+        info!("searching for results in meili");
+        let client = meili::new(meili_url, meili_key);
+        match client.index("emoji").search().with_query(&emoji_name).execute::<EmojiSearch>().await {
+            Ok(s) => {
+                s.hits.iter().for_each(|hit| {
+                    let e = EmojiAutocompleteOption {
+                        name: hit.result.name.clone(),
+                        value: hit.result.name.clone()
+                    };
+                    match serde_json::to_value(&e) {
+                        Ok(val) => {
+                            results.push(val);
+                        },
+                    Err(e) => {
+                        error!("Unable to convert results to proper format for autocomplete: {e}");
+                    }};
+                });
+
+            },
+            Err(e) => {
+                error!("Unable to get results of search: {e}");
+            }
+        };
+    } else {
+        error!("can't search for results.");
+    }
+    let choices = match serde_json::to_value(&results) {
+        Ok(s) => s,
+        Err(e) => {
+            error!("can't convert results to choice list.  Returning nothing for choices.");
+            json!([])
+        }
+    };
+
     if let Err(e) = command
         .create_autocomplete_response(&ctx.http, |resp| {
             resp.set_choices(choices)
@@ -158,9 +192,22 @@ pub struct EmojiSearch {
     name: String
 }
 
-pub async fn do_emoji_indexing(url: String) -> anyhow::Result<()>{
+#[derive(Serialize,Deserialize,Debug)]
+pub struct EmojiAutocompleteOption {
+    name: String,
+    value: String
+}
+
+
+
+pub async fn do_emoji_indexing(url: String) -> anyhow::Result<()> {
     let client :meilisearch_sdk::client::Client = meili::new(url, None::<String>);
-    client.index("emoji");
-    info!("Woulda indexed here.");
+    let emoji = client.index("emoji");
+
+    if let Err(e) =  emoji.add_documents(&[
+        EmojiSearch { name: String::from("petetest") }
+    ], Some("name")).await {
+            anyhow!("Unable to index: {e}");
+        };
     Ok(())
 }
