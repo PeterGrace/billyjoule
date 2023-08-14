@@ -82,6 +82,7 @@ async fn main() {
     let http = Http::new(&token);
     let (sweeper, stats) = Sweeper::new(
         http,
+        args.guild_id.clone().into(),
         args.channel_id.into(),
         args.max_message_age,
         args.dry_run,
@@ -91,7 +92,7 @@ async fn main() {
     let (handler, ready) = Handler::new(args.guild_id.into(), log_channel_id);
 
     // Start sweeper.
-    tokio::spawn(run_sweeper(sweeper, ready));
+    tokio::spawn(run_sweeper(sweeper, ready, false));
 
     let intents = GatewayIntents::GUILDS
         | GatewayIntents::GUILD_MESSAGES

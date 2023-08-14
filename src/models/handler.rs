@@ -28,6 +28,7 @@ pub struct Handler {
     ready: mpsc::Sender<()>,
 }
 
+
 impl Handler {
     pub(crate) fn new(
         guild_id: GuildId,
@@ -44,6 +45,7 @@ impl Handler {
             rx,
         )
     }
+
 }
 
 #[async_trait]

@@ -4,18 +4,20 @@ use futures::stream::StreamExt;
 use serenity::futures::{Stream, TryStreamExt};
 use serenity::http::Http;
 use serenity::model::channel::Message;
-use serenity::model::id::{ChannelId, MessageId};
+use serenity::model::id::{ChannelId, GuildId, MessageId};
 use serenity::prelude::TypeMapKey;
-use std::future;
+use std::{env, future};
 use std::ops::Deref;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use serenity::utils::MessageBuilder;
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 use tracing::{debug, error, info};
+use crate::models::handler::Handler;
 
-pub(crate) async fn run_sweeper(mut sweeper: Sweeper, mut ready: mpsc::Receiver<()>) {
+pub(crate) async fn run_sweeper(mut sweeper: Sweeper, mut ready: mpsc::Receiver<()>, once: bool) {
     ready.recv().await.expect("failed to receive ready signal");
 
     info!("Bot ready, starting sweep loop.");
@@ -28,12 +30,17 @@ pub(crate) async fn run_sweeper(mut sweeper: Sweeper, mut ready: mpsc::Receiver<
             "Ran sweeper. Sleeping for 1 hour."
         );
 
+        if once {
+            info!("Instantiated with once = true, exiting 1-hr loop logic.");
+            return;
+        }
         tokio::time::sleep(Duration::hours(1).to_std().expect("1 hour is in range")).await;
     }
 }
 
 pub(crate) struct Sweeper {
     http: Arc<Http>,
+    guild_id: GuildId,
     channel_id: ChannelId,
     max_message_age: Duration,
     dry_run: bool,
@@ -59,6 +66,7 @@ impl TypeMapKey for StatsReceiver {
 impl Sweeper {
     pub(crate) fn new(
         http: Http,
+        guild_id: GuildId,
         channel_id: ChannelId,
         max_message_age: Duration,
         dry_run: bool,
@@ -75,6 +83,7 @@ impl Sweeper {
         (
             Sweeper {
                 http: Arc::new(http),
+                guild_id,
                 channel_id,
                 max_message_age,
                 dry_run,
@@ -85,10 +94,13 @@ impl Sweeper {
         )
     }
 
+
     async fn sweep_messages(&mut self) {
         let cutoff_time = Utc::now() - self.max_message_age;
 
         let success_count = Arc::new(AtomicU32::new(0));
+
+
         info!(%cutoff_time, "Sweeping expired messages.");
 
         let message_ids: Vec<MessageId> = self
@@ -104,6 +116,22 @@ impl Sweeper {
                         None
                     }
                     false => {
+                        if let Some(thread) = message.thread {
+                            // this message is a thread so needs to be treated as a channel.
+
+                            let guild_id = self.guild_id.clone();
+
+                            // we already know DISCORD_TOKEN is valid since we expect it in main.rs when starting
+                            let token = env::var("DISCORD_TOKEN").unwrap();
+                            let (sweeper, stats) = Sweeper::new(
+                                Http::new(&token),
+                                guild_id,
+                                thread.id,
+                                Duration::days(1),
+                                false
+                            );
+
+                        }
                         let success_count = success_count.clone();
                         success_count.fetch_add(1, Ordering::SeqCst);
                         if message.pinned {
@@ -128,7 +156,8 @@ impl Sweeper {
                 .delete_messages(self.http.clone(), chunk)
                 .await
             {
-                error!("Unable to delete messages: {:#?}", e);
+                send_message_to_channel(self.http.clone(), self.guild_id, self.channel_id, format!("Unable to delete messages: {:#?}", e)).await;
+                return;
             }
         }
 
@@ -168,4 +197,16 @@ impl Sweeper {
         messages.sort_by_key(|m| m.timestamp);
         Ok(messages)
     }
+}
+
+async fn send_message_to_channel(http: Arc<Http>, guild :GuildId, channel: ChannelId, message: String) -> anyhow::Result<()> {
+    let formatted_message = MessageBuilder::new()
+        .channel(channel)
+        .push(message)
+        .build();
+    if let Err(e) = channel.say(&http, formatted_message).await {
+        error!("Couldn't use channel.say in eventhandler: {e}")
+    };
+
+    Ok(())
 }
