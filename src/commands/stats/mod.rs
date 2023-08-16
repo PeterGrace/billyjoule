@@ -6,7 +6,7 @@ use crate::models::sweeper::{Stats, StatsReceiver};
 use chrono::Utc;
 
 pub async fn do_stats(ctx: &Context, command: ApplicationCommandInteraction) {
-    let stats = match get_stats(&ctx).await {
+    let stats = match get_stats(ctx).await {
         None => {
             error!("Stats don't exist, but they should.");
             return;

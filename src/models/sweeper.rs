@@ -1,4 +1,4 @@
-use crate::models::handler::Handler;
+
 use async_recursion::async_recursion;
 use async_stream::try_stream;
 use chrono::{DateTime, Duration, Utc};
@@ -9,7 +9,7 @@ use serenity::model::channel::Message;
 use serenity::model::id::{ChannelId, GuildId, MessageId};
 use serenity::prelude::TypeMapKey;
 use serenity::utils::MessageBuilder;
-use std::num::ParseIntError;
+
 use std::ops::Deref;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -83,7 +83,7 @@ impl Sweeper {
         let (tx, rx) = watch::channel(stats.clone());
 
         let mut log_channel: Option<ChannelId> = None;
-        if let Some(log_channel_id) = env::var("LOG_CHANNEL_ID").ok() {
+        if let Ok(log_channel_id) = env::var("LOG_CHANNEL_ID") {
             log_channel = match log_channel_id.parse::<u64>() {
                 Ok(val) => Some(ChannelId(val)),
                 Err(_) => None,
@@ -117,7 +117,7 @@ impl Sweeper {
                     info!("Thread {} is in scope for sweeping", thread.name);
                     // we already know DISCORD_TOKEN is valid since we expect it in main.rs when starting
                     let token = env::var("DISCORD_TOKEN").unwrap();
-                    let (mut sweeper, stats) = Sweeper::new(
+                    let (mut sweeper, _stats) = Sweeper::new(
                         Http::new(&token),
                         thread.guild_id,
                         thread.id,
@@ -128,7 +128,9 @@ impl Sweeper {
                     sweeper.sweep_messages().await;
                     if thread.message_count.unwrap() == 0 {
                         info!("Deleting thread {}", thread.name);
-                        thread.delete(self.http.clone()).await;
+                        if let Err(e) = thread.delete(self.http.clone()).await {
+                            error!("Attempted to delete thread {} but failed: {:#?}", thread.name, e);
+                        }
                     }
                 }
             }
@@ -149,7 +151,7 @@ impl Sweeper {
                         None
                     }
                     false => {
-                        let success_count = success_count.clone();
+                        let success_count = success_count;
                         success_count.fetch_add(1, Ordering::SeqCst);
                         if message.pinned {
                             debug!(%message.id, "message is pinned, skipping delete.");
@@ -173,13 +175,15 @@ impl Sweeper {
                 .delete_messages(self.http.clone(), chunk)
                 .await
             {
-                send_message_to_channel(
+                if let Some(channel) = self.log_channel {
+                    let _ = send_message_to_channel(
                     self.http.clone(),
                     self.guild_id,
-                    self.channel_id,
+                    channel,
                     format!("Unable to delete messages: {:#?}", e),
                 )
                 .await;
+                }
                 return;
             }
         }
@@ -224,7 +228,7 @@ impl Sweeper {
 /// send a message to a specified channel.
 async fn send_message_to_channel(
     http: Arc<Http>,
-    guild: GuildId,
+    _guild: GuildId,
     channel: ChannelId,
     message: String,
 ) -> anyhow::Result<()> {
