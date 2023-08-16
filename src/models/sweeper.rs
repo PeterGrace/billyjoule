@@ -1,21 +1,25 @@
+
+use async_recursion::async_recursion;
 use async_stream::try_stream;
 use chrono::{DateTime, Duration, Utc};
 use futures::stream::StreamExt;
 use serenity::futures::{Stream, TryStreamExt};
 use serenity::http::Http;
 use serenity::model::channel::Message;
-use serenity::model::id::{ChannelId, MessageId};
+use serenity::model::id::{ChannelId, GuildId, MessageId};
 use serenity::prelude::TypeMapKey;
-use std::future;
+use serenity::utils::MessageBuilder;
+
 use std::ops::Deref;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::{env, future};
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 use tracing::{debug, error, info};
 
-pub(crate) async fn run_sweeper(mut sweeper: Sweeper, mut ready: mpsc::Receiver<()>) {
+pub(crate) async fn run_sweeper(mut sweeper: Sweeper, mut ready: mpsc::Receiver<()>, once: bool) {
     ready.recv().await.expect("failed to receive ready signal");
 
     info!("Bot ready, starting sweep loop.");
@@ -28,16 +32,21 @@ pub(crate) async fn run_sweeper(mut sweeper: Sweeper, mut ready: mpsc::Receiver<
             "Ran sweeper. Sleeping for 1 hour."
         );
 
+        if once {
+            info!("Instantiated with once = true, exiting 1-hr loop logic.");
+            return;
+        }
         tokio::time::sleep(Duration::hours(1).to_std().expect("1 hour is in range")).await;
     }
 }
 
 pub(crate) struct Sweeper {
     http: Arc<Http>,
+    guild_id: GuildId,
     channel_id: ChannelId,
     max_message_age: Duration,
     dry_run: bool,
-
+    log_channel: Option<ChannelId>,
     stats: Stats,
     stats_tx: watch::Sender<Stats>,
 }
@@ -59,6 +68,7 @@ impl TypeMapKey for StatsReceiver {
 impl Sweeper {
     pub(crate) fn new(
         http: Http,
+        guild_id: GuildId,
         channel_id: ChannelId,
         max_message_age: Duration,
         dry_run: bool,
@@ -72,10 +82,20 @@ impl Sweeper {
 
         let (tx, rx) = watch::channel(stats.clone());
 
+        let mut log_channel: Option<ChannelId> = None;
+        if let Ok(log_channel_id) = env::var("LOG_CHANNEL_ID") {
+            log_channel = match log_channel_id.parse::<u64>() {
+                Ok(val) => Some(ChannelId(val)),
+                Err(_) => None,
+            }
+        }
+
         (
             Sweeper {
                 http: Arc::new(http),
+                guild_id,
                 channel_id,
+                log_channel,
                 max_message_age,
                 dry_run,
                 stats,
@@ -85,10 +105,37 @@ impl Sweeper {
         )
     }
 
+    #[async_recursion]
     async fn sweep_messages(&mut self) {
         let cutoff_time = Utc::now() - self.max_message_age;
 
         let success_count = Arc::new(AtomicU32::new(0));
+
+        if let Ok(threads) = self.guild_id.get_active_threads(self.http.clone()).await {
+            for thread in threads.threads {
+                if thread.parent_id == Some(self.channel_id) {
+                    info!("Thread {} is in scope for sweeping", thread.name);
+                    // we already know DISCORD_TOKEN is valid since we expect it in main.rs when starting
+                    let token = env::var("DISCORD_TOKEN").unwrap();
+                    let (mut sweeper, _stats) = Sweeper::new(
+                        Http::new(&token),
+                        thread.guild_id,
+                        thread.id,
+                        Duration::days(1),
+                        false,
+                    );
+                    // Start sweeper on thread.
+                    sweeper.sweep_messages().await;
+                    if thread.message_count.unwrap() == 0 {
+                        info!("Deleting thread {}", thread.name);
+                        if let Err(e) = thread.delete(self.http.clone()).await {
+                            error!("Attempted to delete thread {} but failed: {:#?}", thread.name, e);
+                        }
+                    }
+                }
+            }
+        }
+
         info!(%cutoff_time, "Sweeping expired messages.");
 
         let message_ids: Vec<MessageId> = self
@@ -104,7 +151,7 @@ impl Sweeper {
                         None
                     }
                     false => {
-                        let success_count = success_count.clone();
+                        let success_count = success_count;
                         success_count.fetch_add(1, Ordering::SeqCst);
                         if message.pinned {
                             debug!(%message.id, "message is pinned, skipping delete.");
@@ -128,7 +175,16 @@ impl Sweeper {
                 .delete_messages(self.http.clone(), chunk)
                 .await
             {
-                error!("Unable to delete messages: {:#?}", e);
+                if let Some(channel) = self.log_channel {
+                    let _ = send_message_to_channel(
+                    self.http.clone(),
+                    self.guild_id,
+                    channel,
+                    format!("Unable to delete messages: {:#?}", e),
+                )
+                .await;
+                }
+                return;
             }
         }
 
@@ -168,4 +224,18 @@ impl Sweeper {
         messages.sort_by_key(|m| m.timestamp);
         Ok(messages)
     }
+}
+/// send a message to a specified channel.
+async fn send_message_to_channel(
+    http: Arc<Http>,
+    _guild: GuildId,
+    channel: ChannelId,
+    message: String,
+) -> anyhow::Result<()> {
+    let formatted_message = MessageBuilder::new().push(message).build();
+    if let Err(e) = channel.say(&http, formatted_message).await {
+        error!("Couldn't use channel.say in eventhandler: {e}")
+    };
+
+    Ok(())
 }

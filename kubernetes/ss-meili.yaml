@@ -30,7 +30,7 @@ spec:
       - name: meilisearch
         env:
           - name: MEILI_LOG_LEVEL
-            value: DEBUG
+            value: INFO
         envFrom:
           - secretRef:
               name: meilisearch-key

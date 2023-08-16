@@ -9,7 +9,7 @@ use duration_string::DurationString;
 use serenity::framework::standard::StandardFramework;
 use serenity::http::Http;
 use serenity::prelude::*;
-use futures::executor::block_on;
+
 
 use models::handler::Handler;
 use models::handler::GENERAL_GROUP;
@@ -67,7 +67,7 @@ async fn main() {
 
     if let Some(url) = meili_server {
         info!("reindexing emoji folder");
-        if let Err(e) = do_emoji_indexing(url).await {
+        if let Err(_e) = do_emoji_indexing(url).await {
             error!("failure to index emoji");
         }
     }
@@ -82,6 +82,7 @@ async fn main() {
     let http = Http::new(&token);
     let (sweeper, stats) = Sweeper::new(
         http,
+        args.guild_id.into(),
         args.channel_id.into(),
         args.max_message_age,
         args.dry_run,
@@ -91,7 +92,7 @@ async fn main() {
     let (handler, ready) = Handler::new(args.guild_id.into(), log_channel_id);
 
     // Start sweeper.
-    tokio::spawn(run_sweeper(sweeper, ready));
+    tokio::spawn(run_sweeper(sweeper, ready, false));
 
     let intents = GatewayIntents::GUILDS
         | GatewayIntents::GUILD_MESSAGES
