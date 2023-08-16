@@ -1,3 +1,5 @@
+use crate::commands::emoji::{do_emoji, do_emoji_autocomplete};
+use crate::commands::stats::do_stats;
 use serenity::async_trait;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::CommandResult;
@@ -7,13 +9,11 @@ use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
 use serenity::model::id::{ChannelId, GuildId};
 use serenity::model::permissions::Permissions;
+use serenity::model::prelude::command::CommandOptionType;
 use serenity::prelude::*;
-use std::env;
-use serenity::model::prelude::command::{CommandOptionType};
 use serenity::utils::MessageBuilder;
+use std::env;
 use tokio::sync::mpsc;
-use crate::commands::emoji::{do_emoji, do_emoji_autocomplete};
-use crate::commands::stats::do_stats;
 
 const STATS_COMMAND: &str = "stats";
 const STATS_DESCRIPTION: &str = "show stats about the bot";
@@ -27,7 +27,6 @@ pub struct Handler {
     log_channel_id: Option<String>,
     ready: mpsc::Sender<()>,
 }
-
 
 impl Handler {
     pub(crate) fn new(
@@ -45,7 +44,6 @@ impl Handler {
             rx,
         )
     }
-
 }
 
 #[async_trait]
@@ -85,10 +83,8 @@ impl EventHandler for Handler {
                                     .required(true)
                                     .description("Name of emoji to import")
                                     .set_autocomplete(true)
-
                             })
                     })
-
             })
             .await
             .expect("failed to create app commands");
@@ -119,10 +115,6 @@ impl EventHandler for Handler {
         };
     }
 }
-
-
-
-
 
 // command groups
 
