@@ -16,7 +16,7 @@ dotenv = "0.15.0"
 duration-string = "0.3.0"
 futures = "0.3.28"
 human-duration = "0.1.0"
-
+async-recursion = "1.0.4"
 serenity = "0.11.6"
 tokio = { version = "1.27.0", features = ["tracing", "macros", "rt-multi-thread"] }
 tracing = "0.1.37"
