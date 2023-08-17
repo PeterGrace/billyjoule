@@ -7,6 +7,7 @@ use serenity::model::application::interaction::application_command::{Application
 
 pub mod emoji;
 pub mod stats;
+pub mod llama;
 
 pub async fn err_response(ctx: &Context, command: &ApplicationCommandInteraction, error_message: &str) {
     debug!("pre-response-send");
