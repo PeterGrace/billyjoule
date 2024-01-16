@@ -36,6 +36,13 @@ pub async fn do_emoji(ctx: &Context, command: ApplicationCommandInteraction) {
             return;
         }
     };
+    let emoji_str = emoji_name.to_string();
+
+    if emoji_str.len() < 2 || emoji_str.len() >= 32 {
+        err_response(ctx, &command, "emoji name must be between 2 and 32 characters long!").await;
+        error!("emoji name specified failed the length check.");
+        return;
+    }
 
     let s3_endpoint = env::var("EMOJI_S3_ENDPOINT").ok();
     let s3_bucket = env::var("EMOJI_S3_BUCKET").ok();
