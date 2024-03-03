@@ -3,7 +3,7 @@ use async_stream::try_stream;
 use chrono::{DateTime, Duration, Utc};
 use futures::stream::StreamExt;
 use serenity::futures::{Stream, TryStreamExt};
-use serenity::http::Http;
+use serenity::http::{Http, HttpError};
 use serenity::model::channel::Message;
 use serenity::model::id::{ChannelId, GuildId, MessageId};
 use serenity::prelude::TypeMapKey;
