@@ -1,17 +1,17 @@
+use crate::commands::err_response;
+use meilisearch_sdk::client::Client as meili;
+use s3::creds::Credentials;
+use s3::{Bucket, Region};
+use serde::{Deserialize, Serialize};
 use serenity::json::{json, Value};
-use serenity::model::prelude::interaction::InteractionResponseType;
-use serenity::prelude::*;
 use serenity::model::application::interaction::application_command::{
     ApplicationCommandInteraction, CommandDataOption,
 };
 use serenity::model::application::interaction::autocomplete::*;
-use serde::{Serialize, Deserialize};
-use s3::creds::Credentials;
-use s3::{Bucket, Region};
-use crate::commands::err_response;
-use meilisearch_sdk::client::Client as meili;
+use serenity::model::prelude::interaction::InteractionResponseType;
+use serenity::prelude::*;
 
-use anyhow::{bail};
+use anyhow::bail;
 
 use std::env;
 
@@ -39,7 +39,12 @@ pub async fn do_emoji(ctx: &Context, command: ApplicationCommandInteraction) {
     let emoji_str = emoji_name.to_string();
 
     if emoji_str.len() < 2 || emoji_str.len() >= 32 {
-        err_response(ctx, &command, "emoji name must be between 2 and 32 characters long!").await;
+        err_response(
+            ctx,
+            &command,
+            "emoji name must be between 2 and 32 characters long!",
+        )
+        .await;
         error!("emoji name specified failed the length check.");
         return;
     }
@@ -47,7 +52,12 @@ pub async fn do_emoji(ctx: &Context, command: ApplicationCommandInteraction) {
     let s3_endpoint = env::var("EMOJI_S3_ENDPOINT").ok();
     let s3_bucket = env::var("EMOJI_S3_BUCKET").ok();
     if s3_endpoint.is_none() {
-        err_response(ctx, &command, "bot is misconfigured: missing s3 endpoint def").await;
+        err_response(
+            ctx,
+            &command,
+            "bot is misconfigured: missing s3 endpoint def",
+        )
+        .await;
         error!("need an s3 endpoint for emojis");
         return;
     }
@@ -65,8 +75,8 @@ pub async fn do_emoji(ctx: &Context, command: ApplicationCommandInteraction) {
         },
         Credentials::default().unwrap(),
     )
-        .unwrap()
-        .with_path_style();
+    .unwrap()
+    .with_path_style();
 
     let file_list = match bucket
         .list(
@@ -77,18 +87,33 @@ pub async fn do_emoji(ctx: &Context, command: ApplicationCommandInteraction) {
     {
         Ok(s) => s,
         Err(e) => {
-            err_response(ctx, &command, "couldn't list s3 contents. maybe wrong bucket or endpoint.").await;
+            err_response(
+                ctx,
+                &command,
+                "couldn't list s3 contents. maybe wrong bucket or endpoint.",
+            )
+            .await;
             error!("{}", e);
             return;
         }
     };
     if file_list.is_empty() {
-        err_response(ctx, &command, "couldn't list s3 contents. maybe wrong bucket or endpoint.").await;
+        err_response(
+            ctx,
+            &command,
+            "couldn't list s3 contents. maybe wrong bucket or endpoint.",
+        )
+        .await;
         error!("emoji not found.");
         return;
     }
     if file_list[0].contents.is_empty() {
-        err_response(ctx, &command, format!("emoji {} not found!",emoji_name).as_str()).await;
+        err_response(
+            ctx,
+            &command,
+            format!("emoji {} not found!", emoji_name).as_str(),
+        )
+        .await;
         error!("emoji not found.");
         return;
     }
@@ -150,23 +175,31 @@ pub async fn do_emoji_autocomplete(ctx: &Context, command: AutocompleteInteracti
     if let Some(meili_url) = meili_server {
         info!("searching for results in meili");
         let client = meili::new(meili_url, meili_key);
-        match client.index("emoji").search().with_query(emoji_name).execute::<EmojiSearch>().await {
+        match client
+            .index("emoji")
+            .search()
+            .with_query(emoji_name)
+            .execute::<EmojiSearch>()
+            .await
+        {
             Ok(s) => {
                 s.hits.iter().for_each(|hit| {
                     let e = EmojiAutocompleteOption {
                         name: hit.result.name.clone(),
-                        value: hit.result.name.clone()
+                        value: hit.result.name.clone(),
                     };
                     match serde_json::to_value(e) {
                         Ok(val) => {
                             results.push(val);
-                        },
-                    Err(e) => {
-                        error!("Unable to convert results to proper format for autocomplete: {e}");
-                    }};
+                        }
+                        Err(e) => {
+                            error!(
+                                "Unable to convert results to proper format for autocomplete: {e}"
+                            );
+                        }
+                    };
                 });
-
-            },
+            }
             Err(e) => {
                 error!("Unable to get results of search: {e}");
             }
@@ -183,26 +216,23 @@ pub async fn do_emoji_autocomplete(ctx: &Context, command: AutocompleteInteracti
     };
 
     if let Err(e) = command
-        .create_autocomplete_response(&ctx.http, |resp| {
-            resp.set_choices(choices)
-        }).await {
+        .create_autocomplete_response(&ctx.http, |resp| resp.set_choices(choices))
+        .await
+    {
         error!("couldn't send autocomplete response: {e}");
     }
 }
 
-
-#[derive(Serialize,Deserialize,Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct EmojiSearch {
-    name: String
+    name: String,
 }
 
-#[derive(Serialize,Deserialize,Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct EmojiAutocompleteOption {
     name: String,
-    value: String
+    value: String,
 }
-
-
 
 pub async fn do_emoji_indexing(_url: String) -> anyhow::Result<()> {
     let s3_endpoint = env::var("EMOJI_S3_ENDPOINT").ok();
@@ -212,10 +242,10 @@ pub async fn do_emoji_indexing(_url: String) -> anyhow::Result<()> {
     }
     if s3_bucket.is_none() {
         bail!("need a bucket name for emojis");
-
     }
-    let Some(url) = env::var("MEILISEARCH_HOST").ok()
-    else { bail!("MEILISEARCH_HOST not defined") };
+    let Some(url) = env::var("MEILISEARCH_HOST").ok() else {
+        bail!("MEILISEARCH_HOST not defined")
+    };
 
     let bucket = Bucket::new(
         &s3_bucket.unwrap(),
@@ -225,8 +255,8 @@ pub async fn do_emoji_indexing(_url: String) -> anyhow::Result<()> {
         },
         Credentials::default().unwrap(),
     )
-        .unwrap()
-        .with_path_style();
+    .unwrap()
+    .with_path_style();
 
     let filenames = match get_emoji_directory_names(bucket).await {
         Some(f) => f,
@@ -235,38 +265,30 @@ pub async fn do_emoji_indexing(_url: String) -> anyhow::Result<()> {
         }
     };
 
+    let meili_key = env::var("MEILISEARCH_KEY").ok();
+    let client: meilisearch_sdk::client::Client = meili::new(url, meili_key);
+    let emoji = client.index("emoji");
 
-        let meili_key = env::var("MEILISEARCH_KEY").ok();
-        let client: meilisearch_sdk::client::Client = meili::new(url, meili_key);
-        let emoji = client.index("emoji");
-
-        let mut search_data: Vec<EmojiSearch> = vec![];
-        filenames.iter().for_each(|f| {
-            if is_valid_meili_key(f) {
-                search_data.push(EmojiSearch { name: f.to_string() });
-            };
-        });
-        debug!("About to index {} emojis.", search_data.len());
-        if let Err(e) = emoji.add_documents(
-            &search_data,
-            Some("name")).await {
-            bail!("Unable to index: {e}");
+    let mut search_data: Vec<EmojiSearch> = vec![];
+    filenames.iter().for_each(|f| {
+        if is_valid_meili_key(f) {
+            search_data.push(EmojiSearch {
+                name: f.to_string(),
+            });
         };
+    });
+    debug!("About to index {} emojis.", search_data.len());
+    if let Err(e) = emoji.add_documents(&search_data, Some("name")).await {
+        bail!("Unable to index: {e}");
+    };
 
     Ok(())
 }
 
-async fn get_emoji_directory_names(bucket :Bucket) -> Option<Vec<String>> {
-
+async fn get_emoji_directory_names(bucket: Bucket) -> Option<Vec<String>> {
     let mut dirnames: Vec<String> = vec![];
     debug!("Preparing to get file list from s3 bucket");
-    let list_result = match bucket
-        .list(
-            String::default(),
-            Some("/".to_owned()),
-        )
-        .await
-    {
+    let list_result = match bucket.list(String::default(), Some("/".to_owned())).await {
         Ok(s) => s,
         Err(e) => {
             error!("{}", e);
@@ -288,12 +310,11 @@ async fn get_emoji_directory_names(bucket :Bucket) -> Option<Vec<String>> {
 }
 
 fn is_valid_meili_key(key: &str) -> bool {
-
     // attempt to strip out hyphens and underscores.
-    let tmp = key.replace(['-','_'],"");
+    let tmp = key.replace(['-', '_'], "");
     // now, if the string is just alphanumeric, good.
     if tmp.chars().all(char::is_alphanumeric) {
-        return true
+        return true;
     }
     // there were still chars that weren't alphanumeric after we removed hyphens.
     false

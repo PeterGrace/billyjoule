@@ -10,15 +10,14 @@ use serenity::framework::standard::StandardFramework;
 use serenity::http::Http;
 use serenity::prelude::*;
 
-
 use models::handler::Handler;
 use models::handler::GENERAL_GROUP;
 
-use crate::models::sweeper::{run_sweeper, StatsReceiver, Sweeper};
 use crate::commands::emoji::do_emoji_indexing;
+use crate::models::sweeper::{run_sweeper, StatsReceiver, Sweeper};
 
-mod models;
 mod commands;
+mod models;
 
 #[derive(Debug, Parser)]
 #[command(name = "billyjoule")]

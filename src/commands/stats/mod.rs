@@ -1,9 +1,9 @@
-use human_duration::human_duration;
-use serenity::model::prelude::interaction::InteractionResponseType;
-use serenity::prelude::*;
-use serenity::model::application::interaction::application_command::{ApplicationCommandInteraction};
 use crate::models::sweeper::{Stats, StatsReceiver};
 use chrono::Utc;
+use human_duration::human_duration;
+use serenity::model::application::interaction::application_command::ApplicationCommandInteraction;
+use serenity::model::prelude::interaction::InteractionResponseType;
+use serenity::prelude::*;
 
 pub async fn do_stats(ctx: &Context, command: ApplicationCommandInteraction) {
     let stats = match get_stats(ctx).await {
@@ -40,7 +40,8 @@ pub async fn do_stats(ctx: &Context, command: ApplicationCommandInteraction) {
                                     format!("Cleaned up {} messages.", stats.all_runs),
                                     false,
                                 )
-                        }).ephemeral(true)
+                        })
+                        .ephemeral(true)
                 })
         })
         .await

@@ -1,4 +1,3 @@
-
 use async_recursion::async_recursion;
 use async_stream::try_stream;
 use chrono::{DateTime, Duration, Utc};
@@ -129,7 +128,10 @@ impl Sweeper {
                     if thread.message_count.unwrap() == 0 {
                         info!("Deleting thread {}", thread.name);
                         if let Err(e) = thread.delete(self.http.clone()).await {
-                            error!("Attempted to delete thread {} but failed: {:#?}", thread.name, e);
+                            error!(
+                                "Attempted to delete thread {} but failed: {:#?}",
+                                thread.name, e
+                            );
                         }
                     }
                 }
@@ -175,15 +177,59 @@ impl Sweeper {
                 .delete_messages(self.http.clone(), chunk)
                 .await
             {
-                if let Some(channel) = self.log_channel {
-                    let _ = send_message_to_channel(
-                    self.http.clone(),
-                    self.guild_id,
-                    channel,
-                    format!("Unable to delete messages: {:#?}", e),
-                )
-                .await;
+                if let serenity::Error::Http(boxed) = &e {
+                    if let HttpError::UnsuccessfulRequest(er) = boxed.deref() {
+                        match er.error.code {
+                            // some codes we don't care about, for instance
+                            // 50021 -- discord won't let us delete system messages
+                            50021 => {
+                                let mut split = er.url.path_segments().unwrap();
+                                let _api = split.next().unwrap();
+                                let _ver = split.next().unwrap();
+                                let _channels = split.next().unwrap();
+                                let channel_id = split.next().unwrap();
+                                let _messages = split.next().unwrap();
+                                let message_id = split.next().unwrap();
+
+                                if let Some(channel) = self.log_channel {
+                                    let _ = send_message_to_channel(
+                                        self.http.clone(),
+                                        self.guild_id,
+                                        channel,
+                                        format!("Received 50021 for message: https://discord.com/channels/{}/{}/{}",
+                                                self.guild_id,
+                                                channel_id,
+                                                message_id
+                                        ),
+                                    )
+                                        .await;
+                                }
+                            }
+                            _ => {
+                                if let Some(channel) = self.log_channel {
+                                    let _ = send_message_to_channel(
+                                        self.http.clone(),
+                                        self.guild_id,
+                                        channel,
+                                        format!("Unable to delete messages: {:#?}", e),
+                                    )
+                                    .await;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    if let Some(channel) = self.log_channel {
+                        let _ = send_message_to_channel(
+                            self.http.clone(),
+                            self.guild_id,
+                            channel,
+                            format!("Unable to delete messages: {:#?}", e),
+                        )
+                        .await;
+                    }
                 }
+
                 return;
             }
         }
