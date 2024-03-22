@@ -5,7 +5,7 @@ namespace: billyjoule
 images:
 - name: IMAGENAME:TAG
   newName: docker.io/petergrace/billyjoule
-  newTag: v0.7.0
+  newTag: v0.9.4
 
 resources:
 - ns.yaml

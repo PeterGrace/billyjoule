@@ -183,6 +183,9 @@ impl Sweeper {
                             // some codes we don't care about, for instance
                             // 50021 -- discord won't let us delete system messages
                             50021 => {
+                                /*
+                                 // Leaving code in, commented, in case I need to do this sort of
+                                 // url building again later.
                                 let mut split = er.url.path_segments().unwrap();
                                 let _api = split.next().unwrap();
                                 let _ver = split.next().unwrap();
@@ -204,6 +207,7 @@ impl Sweeper {
                                     )
                                         .await;
                                 }
+                                */
                             }
                             _ => {
                                 if let Some(channel) = self.log_channel {
