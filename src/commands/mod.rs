@@ -5,6 +5,7 @@ use serenity::prelude::*;
 pub mod emoji;
 pub mod llama;
 pub mod stats;
+pub mod stonks;
 
 pub async fn err_response(
     ctx: &Context,

@@ -1,6 +1,7 @@
 use crate::commands::emoji::{do_emoji, do_emoji_autocomplete};
 use crate::commands::llama::do_llama;
 use crate::commands::stats::do_stats;
+use crate::commands::stonks::do_stonks;
 use serenity::async_trait;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::CommandResult;
@@ -120,7 +121,7 @@ impl EventHandler for Handler {
 // command groups
 
 #[group]
-#[commands(ping, llama, version)]
+#[commands(ping, llama, stonks, version)]
 struct General;
 
 #[command]
@@ -133,6 +134,11 @@ async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
 async fn llama(ctx: &Context, msg: &Message) -> CommandResult {
     info!("Received llama request.");
     do_llama(ctx, msg).await
+}
+#[command]
+async fn stonks(ctx: &Context, msg: &Message) -> CommandResult {
+    info!("Received stonks request.");
+    do_stonks(ctx, msg).await
 }
 
 #[command]
