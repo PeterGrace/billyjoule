@@ -1,5 +1,5 @@
 use crate::commands::emoji::{do_emoji, do_emoji_autocomplete};
-use crate::commands::llama::do_llama;
+use crate::commands::llama::{do_llama, do_llama_models};
 use crate::commands::stats::do_stats;
 use crate::commands::stonks::do_stonks;
 use serenity::async_trait;
@@ -131,10 +131,16 @@ async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
 }
 
 #[command]
+async fn llama_models(ctx: &Context, msg: &Message) -> CommandResult {
+    do_llama_models(ctx, msg).await
+}
+
+#[command]
 async fn llama(ctx: &Context, msg: &Message) -> CommandResult {
     info!("Received llama request.");
     do_llama(ctx, msg).await
 }
+
 #[command]
 async fn stonks(ctx: &Context, msg: &Message) -> CommandResult {
     info!("Received stonks request.");

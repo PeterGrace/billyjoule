@@ -31,6 +31,18 @@ impl OllamaApi {
             .build();
         OllamaApi { client: rclient }
     }
+    pub async fn get_models(&self) -> Result<String> {
+        let mut rs = match self
+            .client
+            .get(format!("{LLAMA_URL}/api/tags"))
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => bail!(e),
+        };
+        Ok(String::from_utf8(Vec::from(rs.bytes().await.unwrap())).unwrap())
+    }
     pub async fn doit(&self, prompt: String) -> Result<String> {
         let data = json!({
             "model": "wizard-vicuna",
@@ -44,7 +56,10 @@ impl OllamaApi {
             .send()
             .await
         {
-            Ok(r) => r,
+            Ok(r) => {
+                info!("Received acceptable response to POST request, now entering wait-for-response phase.");
+                r
+            }
             Err(e) => {
                 bail!("Error making a call to the generate endpoint: {e}");
             }
@@ -95,5 +110,24 @@ pub async fn do_llama(ctx: &Context, msg: &Message) -> CommandResult {
     if typing.is_some() {
         typing.unwrap().stop();
     }
+    Ok(())
+}
+
+pub async fn do_llama_models(ctx: &Context, msg: &Message) -> CommandResult {
+    let channel = msg.channel_id;
+    let ollama = OllamaApi::new();
+    let response = match ollama.get_models().await {
+        Ok(s) => {
+            msg.reply(ctx, s.replace(r#"\n"#, "\n")).await?;
+        }
+        Err(e) => {
+            msg.reply(
+                ctx,
+                "Sorry, I wasn't able to answer your question right now.",
+            )
+            .await?;
+        }
+    };
+
     Ok(())
 }

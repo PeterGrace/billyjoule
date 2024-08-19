@@ -1,4 +1,5 @@
-**target/release/build
-**target/release/deps
-**target/debug/build
-**target/release/deps
+target/**/deps
+target/**/build
+target/debug
+!target/debug/billyjoule
+target/**/.fingerprint

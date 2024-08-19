@@ -5,16 +5,18 @@ transport := "docker://"
 registry := "docker.io"
 image := "petergrace/billyjoule"
 
-build-aarch64:
-  cross build --target aarch64-unknown-linux-gnu --release
+all: build-x86_64 image
+
+#build-aarch64:
+#  cross build --target aarch64-unknown-linux-gnu --release
 
 build-x86_64:
   cross build --target x86_64-unknown-linux-gnu --release
 
-build: build-aarch64 build-x86_64
+#build: build-aarch64 build-x86_64
 
 image:
-  docker buildx build --no-cache --push --platform linux/amd64,linux/arm64/v8 \
+  docker buildx build --no-cache --push --platform linux/amd64 \
   -t {{registry}}/{{image}}:latest \
   -t {{registry}}/{{image}}:{{shortcommit}} \
   -t {{registry}}/{{image}}:{{commit}} \
@@ -35,9 +37,8 @@ release-minor:
 release-major:
   cargo release --no-publish --no-verify major --execute
 
-test: 
+test:
   cargo build
   docker-compose rm -f
   docker-compose build --force --no-cache
   docker-compose up
-
