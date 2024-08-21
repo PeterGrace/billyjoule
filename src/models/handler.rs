@@ -121,7 +121,7 @@ impl EventHandler for Handler {
 // command groups
 
 #[group]
-#[commands(ping, llama, stonks, version)]
+#[commands(ping, llama, llama_models, stonks, version)]
 struct General;
 
 #[command]

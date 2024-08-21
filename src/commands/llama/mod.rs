@@ -46,7 +46,8 @@ impl OllamaApi {
     pub async fn doit(&self, prompt: String) -> Result<String> {
         let data = json!({
             "model": "wizard-vicuna",
-            "prompt": prompt
+            "prompt": prompt,
+            "stream": false
         });
         info!("Prompt: {prompt}");
         let mut response = match self
