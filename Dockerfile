@@ -1,4 +1,4 @@
-FROM docker.io/ubuntu:22.04
+FROM docker.io/ubuntu:24.04
 ARG TARGETARCH
 ARG GUILD_ID
 ARG CHANNEL_ID

@@ -66,8 +66,8 @@ async fn main() {
 
     if let Some(url) = meili_server {
         info!("reindexing emoji folder");
-        if let Err(_e) = do_emoji_indexing(url).await {
-            error!("failure to index emoji");
+        if let Err(e) = do_emoji_indexing(url).await {
+            error!("failure to index emoji: {e}");
         }
     }
 

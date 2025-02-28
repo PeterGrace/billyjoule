@@ -39,6 +39,6 @@ release-major:
 
 test:
   cargo build
-  docker-compose rm -f
-  docker-compose build --force --no-cache
-  docker-compose up
+  docker compose rm -f
+  docker compose build --no-cache
+  docker compose up

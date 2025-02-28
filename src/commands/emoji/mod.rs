@@ -243,8 +243,8 @@ pub async fn do_emoji_indexing(_url: String) -> anyhow::Result<()> {
     if s3_bucket.is_none() {
         bail!("need a bucket name for emojis");
     }
-    let Some(url) = env::var("MEILISEARCH_HOST").ok() else {
-        bail!("MEILISEARCH_HOST not defined")
+    let Some(url) = env::var("MEILISEARCH_URL").ok() else {
+        bail!("MEILISEARCH_URL not defined")
     };
 
     let bucket = Bucket::new(
