@@ -96,15 +96,30 @@ pub async fn do_llama(ctx: &Context, msg: &Message) -> CommandResult {
     let response = match ollama.doit(query.clone()).await {
         Ok(s) => {
             info!(message = s.clone(), "Response:");
-            msg.reply(ctx, s.replace(r#"\n"#, "\n")).await?;
+            if let Err(e) = msg.reply(ctx, s.replace(r#"\n"#, "\n")).await {
+                error!(message = s.clone(), "Failed to send response: {e}");
+                if let Err(ee) = msg
+                    .reply(
+                        ctx,
+                        "Sorry, I wasn't able to answer your question right now.",
+                    )
+                    .await
+                {
+                    error!("Failed to send error response to chat: {ee}");
+                }
+            }
         }
         Err(e) => {
             error!(query = query, "failed to execute ollama query.");
-            msg.reply(
-                ctx,
-                "Sorry, I wasn't able to answer your question right now.",
-            )
-            .await?;
+            if let Err(ee) = msg
+                .reply(
+                    ctx,
+                    "Sorry, I wasn't able to answer your question right now.",
+                )
+                .await
+            {
+                error!("Failed to send error response to chat: {ee}");
+            };
         }
     };
 
