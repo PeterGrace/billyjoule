@@ -3,7 +3,7 @@ use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use serde::Deserialize;
 use serde_json::{from_str, json, Value};
-use serenity::framework::standard::CommandResult;
+use serenity::framework::standard::{CommandError, CommandResult};
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 use std::collections::HashMap;
@@ -66,11 +66,26 @@ impl OllamaApi {
             }
         };
         let mut retval: Vec<String> = vec![];
-        while let Some(chunk) = response.chunk().await? {
-            let pc: ParsedChunk = serde_json::from_slice(chunk.as_ref()).unwrap();
+
+        while let Some(chunk) = response.chunk().await.unwrap_or_else(|e| {
+            error!("Error reading chunk from response: {e}");
+            None
+        }) {
+            let pc: ParsedChunk = serde_json::from_slice(chunk.as_ref()).unwrap_or_else(|e| {
+                error!("Error parsing response to json: {e}");
+                ParsedChunk {
+                    model: "".to_string(),
+                    created_at: "".to_string(),
+                    response: None,
+                    done: false,
+                }
+            });
             if let Some(word) = pc.response {
                 retval.push(word);
-            };
+            } else {
+                warn!("Received empty response, breaking out of loop.");
+                break;
+            }
         }
 
         Ok(retval.join(""))
