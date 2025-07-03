@@ -67,24 +67,11 @@ impl OllamaApi {
         };
         let mut retval: Vec<String> = vec![];
 
-        while let Some(chunk) = response.chunk().await.unwrap_or_else(|e| {
-            error!("Error reading chunk from response: {e}");
-            None
-        }) {
-            let pc: ParsedChunk = serde_json::from_slice(chunk.as_ref()).unwrap_or_else(|e| {
-                error!("Error parsing response to json: {e}");
-                ParsedChunk {
-                    model: "".to_string(),
-                    created_at: "".to_string(),
-                    response: None,
-                    done: false,
-                }
-            });
+        if let Ok(pc) = response.json::<ParsedChunk>().await {
             if let Some(word) = pc.response {
                 retval.push(word);
             } else {
                 warn!("Received empty response, breaking out of loop.");
-                break;
             }
         }
 
