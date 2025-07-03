@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::str;
 
 const LLAMA_URL: &str = "http://10.174.5.25:11434";
+const DISCORD_MSG_SIZE_LIMIT: usize = 2000;
 
 #[derive(Deserialize)]
 struct ParsedChunk {
@@ -67,11 +68,20 @@ impl OllamaApi {
         };
         let mut retval: Vec<String> = vec![];
 
-        if let Ok(pc) = response.json::<ParsedChunk>().await {
-            if let Some(word) = pc.response {
-                retval.push(word);
-            } else {
-                warn!("Received empty response, breaking out of loop.");
+        match response.json::<ParsedChunk>().await {
+            Ok(pc) => {
+                if let Some(word) = pc.response {
+                    retval.push(word);
+                } else {
+                    let msg = format!("Empty response from API.");
+                    warn!(msg);
+                    bail!(msg);
+                }
+            }
+            Err(e) => {
+                let msg = format!("Failed to parse response as JSON: {e}");
+                warn!(msg);
+                bail!(msg);
             }
         }
 
@@ -97,17 +107,42 @@ pub async fn do_llama(ctx: &Context, msg: &Message) -> CommandResult {
     let ollama = OllamaApi::new();
     let response = match ollama.doit(query.clone()).await {
         Ok(s) => {
-            info!(message = s.clone(), "Response:");
-            if let Err(e) = msg.reply(ctx, s.replace(r#"\n"#, "\n")).await {
-                error!(message = s.clone(), "Failed to send response: {e}");
-                if let Err(ee) = msg
-                    .reply(
-                        ctx,
-                        "Sorry, I wasn't able to answer your question right now.",
-                    )
-                    .await
-                {
-                    error!("Failed to send error response to chat: {ee}");
+            if s.len() > DISCORD_MSG_SIZE_LIMIT {
+                let whole_payload = s
+                    .split_inclusive("\n")
+                    .collect::<Vec<&str>>()
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<String>>();
+                let mut paragraphs: Vec<String> = vec![];
+                let mut collector: Vec<String> = vec![];
+                let mut collector_len = 0;
+                for line in whole_payload.iter() {
+                    collector.push(line.to_string());
+                    collector_len += line.len();
+                    if collector_len > DISCORD_MSG_SIZE_LIMIT / 2 {
+                        paragraphs.push(collector.join(" "));
+                        collector.clear();
+                        collector_len = 0;
+                    }
+                }
+                for paragraph in paragraphs.iter() {
+                    if let Err(e) = msg.reply(ctx, paragraph.clone()).await {
+                        error!(message = paragraph.clone(), "Failed to send response: {e}");
+                    }
+                }
+            } else {
+                if let Err(e) = msg.reply(ctx, s.replace(r#"\n"#, "\n")).await {
+                    error!(message = s.clone(), "Failed to send response: {e}");
+                    if let Err(ee) = msg
+                        .reply(
+                            ctx,
+                            "Sorry, I wasn't able to answer your question right now.",
+                        )
+                        .await
+                    {
+                        error!("Failed to send error response to chat: {ee}");
+                    }
                 }
             }
         }
