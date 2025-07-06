@@ -5,21 +5,25 @@ extern crate tracing;
 use chrono::Duration;
 use clap::Parser;
 use duration_string::DurationString;
+use models::handler::Handler;
+use models::handler::GENERAL_GROUP;
 use serenity::framework::standard::StandardFramework;
 use serenity::http::Http;
 use serenity::model::id::ChannelId;
 use serenity::prelude::*;
 use std::env;
 use std::sync::Arc;
-
-use models::handler::Handler;
-use models::handler::GENERAL_GROUP;
+use tokio::sync::OnceCell;
 
 use crate::commands::emoji::do_emoji_indexing;
 use crate::models::sweeper::{run_sweeper, StatsReceiver, Sweeper};
 
 mod commands;
 mod models;
+
+lazy_static::lazy_static! {
+    pub static ref CONNECTED: OnceCell<bool> = OnceCell::new();
+}
 
 #[derive(Debug, Parser)]
 #[command(name = "billyjoule")]
@@ -103,13 +107,10 @@ async fn main() {
     );
 
     // Init handler.
-    let (handler, ready) = Handler::new(args.guild_id.into(), log_channel_id);
-    // Start sweeper.
+    let handler = Handler::new(args.guild_id.into(), log_channel_id);
 
-    let ready = Arc::new(Mutex::new(ready));
-
-    tokio::spawn(run_sweeper(sweeper2, ready.clone(), false));
-    tokio::spawn(run_sweeper(sweeper1, ready, false));
+    tokio::spawn(run_sweeper(sweeper2, false));
+    tokio::spawn(run_sweeper(sweeper1, false));
 
     let intents = GatewayIntents::GUILDS
         | GatewayIntents::GUILD_MESSAGES
@@ -128,7 +129,6 @@ async fn main() {
 
     let mut data = client.data.write().await;
     data.insert::<StatsReceiver>(stats1);
-    data.insert::<StatsReceiver>(stats2);
     drop(data);
 
     if let Err(why) = client.start().await {

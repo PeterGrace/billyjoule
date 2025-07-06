@@ -2,6 +2,7 @@ use crate::commands::emoji::{do_emoji, do_emoji_autocomplete};
 use crate::commands::llama::{do_llama, do_llama_models};
 use crate::commands::stats::do_stats;
 use crate::commands::stonks::do_stonks;
+use crate::CONNECTED;
 use serenity::async_trait;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::CommandResult;
@@ -27,24 +28,14 @@ const EMOJI_DESCRIPTION: &str = "Import emojis";
 pub struct Handler {
     guild_id: GuildId,
     log_channel_id: Option<String>,
-    ready: mpsc::Sender<()>,
 }
 
 impl Handler {
-    pub(crate) fn new(
-        guild_id: GuildId,
-        log_channel_id: Option<String>,
-    ) -> (Self, mpsc::Receiver<()>) {
-        // Using `mpsc` over `oneshot` so we can send a signal without a &mut self.
-        let (ready, rx) = mpsc::channel(1);
-        (
-            Handler {
-                guild_id,
-                log_channel_id,
-                ready,
-            },
-            rx,
-        )
+    pub(crate) fn new(guild_id: GuildId, log_channel_id: Option<String>) -> Self {
+        Handler {
+            guild_id,
+            log_channel_id,
+        }
     }
 }
 
@@ -92,10 +83,9 @@ impl EventHandler for Handler {
             .expect("failed to create app commands");
         info!("Created app commands");
 
-        self.ready
-            .send(())
-            .await
-            .expect("failed to send start signal");
+        CONNECTED
+            .set(true)
+            .expect("Couldn't set CONNECTED, nothing will work after this message so paniking");
     }
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let ApplicationCommand(command) = interaction.clone() {

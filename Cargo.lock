@@ -299,6 +299,7 @@ dependencies = [
  "duration-string",
  "futures",
  "human-duration",
+ "lazy_static",
  "meilisearch-sdk",
  "reqwest 0.11.27",
  "reqwest-middleware",
