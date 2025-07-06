@@ -1,14 +1,16 @@
+use std::borrow::BorrowMut;
 #[macro_use]
 extern crate tracing;
-
-use std::env;
 
 use chrono::Duration;
 use clap::Parser;
 use duration_string::DurationString;
 use serenity::framework::standard::StandardFramework;
 use serenity::http::Http;
+use serenity::model::id::ChannelId;
 use serenity::prelude::*;
+use std::env;
+use std::sync::Arc;
 
 use models::handler::Handler;
 use models::handler::GENERAL_GROUP;
@@ -78,20 +80,36 @@ async fn main() {
     );
     // Init sweeper.
     let args = Args::parse();
-    let http = Http::new(&token);
-    let (sweeper, stats) = Sweeper::new(
-        http,
+    let http1 = Http::new(&token);
+    let http2 = Http::new(&token);
+
+    let (sweeper1, stats1) = Sweeper::new(
+        http1,
         args.guild_id.into(),
         args.channel_id.into(),
         args.max_message_age,
         args.dry_run,
     );
 
+    // Start sweeper.
+
+    let (sweeper2, stats2) = Sweeper::new(
+        http2,
+        args.guild_id.into(),
+        ChannelId(1391119117154517052),
+        Duration::hours(12),
+        //args.max_message_age,
+        args.dry_run,
+    );
+
     // Init handler.
     let (handler, ready) = Handler::new(args.guild_id.into(), log_channel_id);
-
     // Start sweeper.
-    tokio::spawn(run_sweeper(sweeper, ready, false));
+
+    let ready = Arc::new(Mutex::new(ready));
+
+    tokio::spawn(run_sweeper(sweeper2, ready.clone(), false));
+    tokio::spawn(run_sweeper(sweeper1, ready, false));
 
     let intents = GatewayIntents::GUILDS
         | GatewayIntents::GUILD_MESSAGES
@@ -109,7 +127,8 @@ async fn main() {
         .expect("Err creating client");
 
     let mut data = client.data.write().await;
-    data.insert::<StatsReceiver>(stats);
+    data.insert::<StatsReceiver>(stats1);
+    data.insert::<StatsReceiver>(stats2);
     drop(data);
 
     if let Err(why) = client.start().await {

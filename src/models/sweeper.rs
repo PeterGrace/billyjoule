@@ -14,12 +14,21 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::{env, future};
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{mpsc, watch, Mutex};
 use tokio::time::Instant;
 use tracing::{debug, error, info};
 
-pub(crate) async fn run_sweeper(mut sweeper: Sweeper, mut ready: mpsc::Receiver<()>, once: bool) {
-    ready.recv().await.expect("failed to receive ready signal");
+pub(crate) async fn run_sweeper(
+    mut sweeper: Sweeper,
+    mut ready: Arc<Mutex<mpsc::Receiver<()>>>,
+    once: bool,
+) {
+    ready
+        .lock()
+        .await
+        .recv()
+        .await
+        .expect("failed to receive ready signal");
 
     info!("Bot ready, starting sweep loop.");
     loop {
