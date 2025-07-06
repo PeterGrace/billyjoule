@@ -6,7 +6,7 @@ use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::*;
 
 pub async fn do_stats(ctx: &Context, command: ApplicationCommandInteraction) {
-    let stats = match get_stats(ctx).await {
+    let vec_stats = match get_stats(ctx).await {
         None => {
             error!("Stats don't exist, but they should.");
             return;
@@ -17,8 +17,8 @@ pub async fn do_stats(ctx: &Context, command: ApplicationCommandInteraction) {
     if let Err(error) = command
         .create_interaction_response(&ctx.http, |resp| {
             resp.kind(InteractionResponseType::ChannelMessageWithSource)
-                .interaction_response_data(|message| {
-                    let uptime = (Utc::now() - stats.started)
+                .interaction_response_data(|mut message| {
+                    let uptime = (Utc::now() - vec_stats[0].started)
                         .to_std()
                         .expect("Duration should be in range");
 
@@ -29,6 +29,12 @@ pub async fn do_stats(ctx: &Context, command: ApplicationCommandInteraction) {
                                 .field("Version", env!("CARGO_PKG_VERSION"), false)
                                 .field("GitHash", env!("GIT_HASH"), false)
                                 .field("Uptime", human_duration(&uptime), false)
+                        });
+
+                    for stats in vec_stats {
+                        message = message.embed(|embed| {
+                            embed
+                                .field("Channel", stats.channel_id, false)
                                 .field("Runs", format!("Ran {} times", stats.runs), false)
                                 .field(
                                     "Last Run",
@@ -41,7 +47,9 @@ pub async fn do_stats(ctx: &Context, command: ApplicationCommandInteraction) {
                                     false,
                                 )
                         })
-                        .ephemeral(true)
+                    }
+                    message = message.ephemeral(true);
+                    message
                 })
         })
         .await
@@ -49,10 +57,15 @@ pub async fn do_stats(ctx: &Context, command: ApplicationCommandInteraction) {
         error!(error = %error, "Failed to respond to status command.");
     }
 }
-async fn get_stats(ctx: &Context) -> Option<Stats> {
-    ctx.data
+async fn get_stats(ctx: &Context) -> Option<Vec<Stats>> {
+    let stats = ctx
+        .data
         .read()
         .await
         .get::<StatsReceiver>()
+        .unwrap()
+        .iter()
         .map(|sr| sr.borrow().clone())
+        .collect();
+    Some(stats)
 }

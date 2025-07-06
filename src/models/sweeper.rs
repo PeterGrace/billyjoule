@@ -32,7 +32,8 @@ pub(crate) async fn run_sweeper(mut sweeper: Sweeper, once: bool) {
         info!(
             task_millis = start.elapsed().as_millis(),
             stats = ?sweeper.stats,
-            "Ran sweeper. Sleeping for 1 hour."
+            "Ran sweeper for {}. Sleeping for 1 hour.",
+            sweeper.channel_id.0
         );
 
         if once {
@@ -56,6 +57,7 @@ pub(crate) struct Sweeper {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Stats {
+    pub(crate) channel_id: ChannelId,
     pub(crate) started: DateTime<Utc>,
     pub(crate) runs: u32,
     pub(crate) last_run: u32,
@@ -65,7 +67,7 @@ pub(crate) struct Stats {
 pub(crate) struct StatsReceiver;
 
 impl TypeMapKey for StatsReceiver {
-    type Value = watch::Receiver<Stats>;
+    type Value = Vec<watch::Receiver<Stats>>;
 }
 
 impl Sweeper {
@@ -77,6 +79,7 @@ impl Sweeper {
         dry_run: bool,
     ) -> (Self, watch::Receiver<Stats>) {
         let stats = Stats {
+            channel_id,
             started: Utc::now(),
             runs: 0,
             last_run: 0,

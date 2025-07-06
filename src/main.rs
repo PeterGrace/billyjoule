@@ -2,6 +2,8 @@ use std::borrow::BorrowMut;
 #[macro_use]
 extern crate tracing;
 
+use crate::commands::emoji::do_emoji_indexing;
+use crate::models::sweeper::{run_sweeper, Stats, StatsReceiver, Sweeper};
 use chrono::Duration;
 use clap::Parser;
 use duration_string::DurationString;
@@ -13,10 +15,8 @@ use serenity::model::id::ChannelId;
 use serenity::prelude::*;
 use std::env;
 use std::sync::Arc;
-use tokio::sync::OnceCell;
-
-use crate::commands::emoji::do_emoji_indexing;
-use crate::models::sweeper::{run_sweeper, StatsReceiver, Sweeper};
+use tokio::sync::{watch, OnceCell};
+use tokio::time::{timeout, Timeout};
 
 mod commands;
 mod models;
@@ -56,7 +56,7 @@ fn parse_duration(arg: &str) -> Result<Duration, String> {
         .and_then(|ds| Duration::from_std(ds.into()).map_err(|err| err.to_string()))
 }
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 async fn main() {
     // setup logging
     let _ = dotenv::from_path("./billyjoule.env");
@@ -86,6 +86,7 @@ async fn main() {
     let args = Args::parse();
     let http1 = Http::new(&token);
     let http2 = Http::new(&token);
+    let mut stats: Vec<watch::Receiver<Stats>> = Vec::new();
 
     let (sweeper1, stats1) = Sweeper::new(
         http1,
@@ -94,6 +95,7 @@ async fn main() {
         args.max_message_age,
         args.dry_run,
     );
+    stats.push(stats1);
 
     // Start sweeper.
 
@@ -105,6 +107,7 @@ async fn main() {
         //args.max_message_age,
         args.dry_run,
     );
+    stats.push(stats2);
 
     // Init handler.
     let handler = Handler::new(args.guild_id.into(), log_channel_id);
@@ -121,14 +124,31 @@ async fn main() {
         .configure(|c| c.prefix("."))
         .group(&GENERAL_GROUP);
 
-    let mut client = serenity::Client::builder(&token, intents)
-        .framework(framework)
-        .event_handler(handler)
-        .await
-        .expect("Err creating client");
+    let mut client;
+    match timeout(
+        core::time::Duration::from_secs(10),
+        serenity::Client::builder(&token, intents)
+            .framework(framework)
+            .event_handler(handler),
+    )
+    .await
+    {
+        Ok(Ok(c)) => {
+            client = c;
+            info!("Connected to Discord");
+        }
+        Ok(Err(e)) => {
+            error!("Failed to connect to Discord: {:?}", e);
+            return;
+        }
+        Err(e) => {
+            error!("Failed to connect to Discord: {:?}", e);
+            return;
+        }
+    }
 
     let mut data = client.data.write().await;
-    data.insert::<StatsReceiver>(stats1);
+    data.insert::<StatsReceiver>(stats);
     drop(data);
 
     if let Err(why) = client.start().await {
