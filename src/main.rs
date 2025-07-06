@@ -103,8 +103,7 @@ async fn main() {
         http2,
         args.guild_id.into(),
         ChannelId(1391119117154517052),
-        Duration::hours(12),
-        //args.max_message_age,
+        args.max_message_age,
         args.dry_run,
     );
     stats.push(stats2);
