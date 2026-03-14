@@ -7,6 +7,8 @@ pub mod llama;
 pub mod stats;
 pub mod stonks;
 
+pub mod exit;
+
 pub async fn err_response(
     ctx: &Context,
     command: &ApplicationCommandInteraction,

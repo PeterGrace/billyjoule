@@ -1,4 +1,5 @@
 use crate::commands::emoji::{do_emoji, do_emoji_autocomplete};
+use crate::commands::exit::do_exit;
 use crate::commands::llama::{do_llama, do_llama_models};
 use crate::commands::stats::do_stats;
 use crate::commands::stonks::do_stonks;
@@ -111,7 +112,7 @@ impl EventHandler for Handler {
 // command groups
 
 #[group]
-#[commands(ping, llama, llama_models, stonks, version)]
+#[commands(ping, llama, llama_models, stonks, version, exit)]
 struct General;
 
 #[command]
@@ -135,6 +136,11 @@ async fn llama(ctx: &Context, msg: &Message) -> CommandResult {
 async fn stonks(ctx: &Context, msg: &Message) -> CommandResult {
     info!("Received stonks request.");
     do_stonks(ctx, msg).await
+}
+#[command]
+async fn exit(ctx: &Context, msg: &Message) -> CommandResult {
+    info!("Received exit request.");
+    do_exit(ctx, msg).await
 }
 
 #[command]
