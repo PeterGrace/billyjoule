@@ -86,6 +86,7 @@ async fn main() {
     let args = Args::parse();
     let http1 = Http::new(&token);
     let http2 = Http::new(&token);
+    let http3 = Http::new(&token);
     let mut stats: Vec<watch::Receiver<Stats>> = Vec::new();
 
     let (sweeper1, stats1) = Sweeper::new(
@@ -108,9 +109,18 @@ async fn main() {
     );
     stats.push(stats2);
 
+    let (sweeper3, stats3) = Sweeper::new(
+        http3,
+        args.guild_id.into(),
+        ChannelId(1491124575143067729),
+        args.max_message_age,
+        args.dry_run,
+    );
+    stats.push(stats3);
     // Init handler.
     let handler = Handler::new(args.guild_id.into(), log_channel_id);
 
+    tokio::spawn(run_sweeper(sweeper3, false));
     tokio::spawn(run_sweeper(sweeper2, false));
     tokio::spawn(run_sweeper(sweeper1, false));
 
