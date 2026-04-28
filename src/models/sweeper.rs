@@ -189,10 +189,10 @@ impl Sweeper {
                         match er.error.code {
                             // some codes we don't care about, for instance
                             // 50021 -- discord won't let us delete system messages
-                            50021 => {
-                                /*
-                                 // Leaving code in, commented, in case I need to do this sort of
-                                 // url building again later.
+                            50021 => {}
+                            50034 => {
+                                // Leaving code in, commented, in case I need to do this sort of
+                                // url building again later.
                                 let mut split = er.url.path_segments().unwrap();
                                 let _api = split.next().unwrap();
                                 let _ver = split.next().unwrap();
@@ -206,7 +206,7 @@ impl Sweeper {
                                         self.http.clone(),
                                         self.guild_id,
                                         channel,
-                                        format!("Received 50021 for message: https://discord.com/channels/{}/{}/{}",
+                                        format!("Received 50034 for message: https://discord.com/channels/{}/{}/{}",
                                                 self.guild_id,
                                                 channel_id,
                                                 message_id
@@ -214,8 +214,8 @@ impl Sweeper {
                                     )
                                         .await;
                                 }
-                                */
                             }
+
                             _ => {
                                 if let Some(channel) = self.log_channel {
                                     let _ = send_message_to_channel(
