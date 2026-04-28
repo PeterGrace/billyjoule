@@ -150,7 +150,7 @@ impl Sweeper {
         let message_ids: Vec<MessageId> = self
             .message_stream()
             .try_take_while(|message| future::ready(Ok(message.timestamp.deref() < &cutoff_time)))
-            .filter_map(|m_result| async  {
+            .filter_map(|m_result| async {
                 let message = m_result.unwrap();
                 let dry_run = self.dry_run;
                 let success_count = success_count.clone();
@@ -181,7 +181,7 @@ impl Sweeper {
             debug!("Issuing chunk delete for {} messages.", chunk.len());
             if let Err(e) = self
                 .channel_id
-                .delete_messages(self.http.clone(), chunk)
+                .delete_messages(self.http.clone(), chunk.clone())
                 .await
             {
                 if let serenity::Error::Http(boxed) = &e {
@@ -191,64 +191,10 @@ impl Sweeper {
                             // 50021 -- discord won't let us delete system messages
                             50021 => {}
                             50034 => {
-                                // Leaving code in, commented, in case I need to do this sort of
-                                // url building again later.
-                                let mut split = er.url.path_segments().unwrap();
-                                let _api = split.next().unwrap();
-                                let _ver = split.next().unwrap();
-                                let _channels = split.next().unwrap();
-                                let channel_id = split.next().unwrap();
-                                let _messages = split.next().unwrap();
-                                let message_id = split.next().unwrap();
-
-                                if let Some(channel) = self.log_channel {
-                                    match self
-                                        .channel_id
-                                        .delete_message(
-                                            self.http.clone(),
-                                            MessageId(message_id.parse().unwrap()),
-                                        )
-                                        .await
-                                    {
-                                        Ok(_) => {
-                                            let _ = send_message_to_channel(
-                                                self.http.clone(),
-                                                self.guild_id,
-                                                channel,
-                                                format!("Received 50034 for message: https://discord.com/channels/{}/{}/{} but we were able to delete it manually instead",
-                                                        self.guild_id,
-                                                        channel_id,
-                                                        message_id
-                                                ),
-                                            )
-                                                .await;
-                                        }
-                                        Err(e) => {
-                                            let _ = send_message_to_channel(
-                                                self.http.clone(),
-                                                self.guild_id,
-                                                channel,
-                                                format!("Received 50034 for message: https://discord.com/channels/{}/{}/{} AND WE COULD NOT DELETE IT.  Please handle manually.",
-                                                        self.guild_id,
-                                                        channel_id,
-                                                        message_id
-                                                ),
-                                            )
-                                                .await;
-                                        }
-                                    }
-                                    let _ = send_message_to_channel(
-                                        self.http.clone(),
-                                        self.guild_id,
-                                        channel,
-                                        format!("Received 50034 for message: https://discord.com/channels/{}/{}/{}",
-                                                self.guild_id,
-                                                channel_id,
-                                                message_id
-                                        ),
-                                    )
-                                        .await;
-                                }
+                                info!(
+                                    "We received 50034, resorting to chompy_delete_messages loop."
+                                );
+                                let _ = self.chompy_delete_messages(chunk.to_vec()).await;
                             }
 
                             _ => {
@@ -315,6 +261,58 @@ impl Sweeper {
 
         messages.sort_by_key(|m| m.timestamp);
         Ok(messages)
+    }
+
+    /// Delete a chunk of messages using bulk delete, continuously splitting the chunk into two
+    /// chunks to whittle down the erroneous message.
+    async fn chompy_delete_messages(&self, chunks: Vec<MessageId>) -> Result<(), anyhow::Error> {
+        let mut pending = vec![chunks];
+
+        while let Some(chunk) = pending.pop() {
+            info!("Deleting chunk of {} messages.", chunk.len());
+            if chunk.is_empty() {
+                continue;
+            }
+
+            if let Err(e) = self
+                .channel_id
+                .delete_messages(self.http.clone(), chunk.clone())
+                .await
+            {
+                if let serenity::Error::Http(boxed) = &e {
+                    if let HttpError::UnsuccessfulRequest(er) = boxed.deref() {
+                        match er.error.code {
+                            // Discord error 50034 usually means at least one message in the
+                            // bulk-delete request is too old to be deleted this way.
+                            50034 => {
+                                if chunk.len() == 1 {
+                                    debug!(
+                                        message_id = %chunk[0],
+                                        "Skipping message that cannot be bulk deleted."
+                                    );
+                                    continue;
+                                }
+
+                                let mid = chunk.len() / 2;
+                                let left = chunk[..mid].to_vec();
+                                let right = chunk[mid..].to_vec();
+
+                                pending.push(left);
+                                pending.push(right);
+                                continue;
+                            }
+                            _ => {
+                                return Err(e.into());
+                            }
+                        }
+                    }
+                }
+
+                return Err(e.into());
+            }
+        }
+
+        Ok(())
     }
 }
 /// send a message to a specified channel.
