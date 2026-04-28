@@ -202,6 +202,41 @@ impl Sweeper {
                                 let message_id = split.next().unwrap();
 
                                 if let Some(channel) = self.log_channel {
+                                    match self
+                                        .channel_id
+                                        .delete_message(
+                                            self.http.clone(),
+                                            MessageId(message_id.parse().unwrap()),
+                                        )
+                                        .await
+                                    {
+                                        Ok(_) => {
+                                            let _ = send_message_to_channel(
+                                                self.http.clone(),
+                                                self.guild_id,
+                                                channel,
+                                                format!("Received 50034 for message: https://discord.com/channels/{}/{}/{} but we were able to delete it manually instead",
+                                                        self.guild_id,
+                                                        channel_id,
+                                                        message_id
+                                                ),
+                                            )
+                                                .await;
+                                        }
+                                        Err(e) => {
+                                            let _ = send_message_to_channel(
+                                                self.http.clone(),
+                                                self.guild_id,
+                                                channel,
+                                                format!("Received 50034 for message: https://discord.com/channels/{}/{}/{} AND WE COULD NOT DELETE IT.  Please handle manually.",
+                                                        self.guild_id,
+                                                        channel_id,
+                                                        message_id
+                                                ),
+                                            )
+                                                .await;
+                                        }
+                                    }
                                     let _ = send_message_to_channel(
                                         self.http.clone(),
                                         self.guild_id,
