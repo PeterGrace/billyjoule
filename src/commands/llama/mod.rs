@@ -11,6 +11,11 @@ use std::str;
 
 const LLAMA_URL: &str = "http://dell-r6415.internal:11434";
 const DISCORD_MSG_SIZE_LIMIT: usize = 2000;
+const SYSTEM_PROMPT: &str = r#"
+You are a bot running in a discord server full of middle-aged technologists.  They appreciate concise answers when possible.  Don't over-embellish or fluff answers.  Being snarky or witty is definitely appreciated.
+
+Markdown is supported, but prefer using simple paragraph-based text whenever possible.  Try not to use emojis unless it makes sense to do so.
+"#;
 
 #[derive(Deserialize)]
 struct ParsedChunk {
@@ -47,6 +52,7 @@ impl OllamaApi {
     pub async fn doit(&self, prompt: String) -> Result<String> {
         let data = json!({
             "model": "qwen3-4b-pm",
+            "system": SYSTEM_PROMPT,
             "prompt": prompt,
             "stream": false
         });
