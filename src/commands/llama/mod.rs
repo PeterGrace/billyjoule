@@ -9,7 +9,7 @@ use serenity::prelude::*;
 use std::collections::HashMap;
 use std::str;
 
-const LLAMA_URL: &str = "http://10.174.5.25:11434";
+const LLAMA_URL: &str = "http://dell-r6415.internal:11434";
 const DISCORD_MSG_SIZE_LIMIT: usize = 2000;
 
 #[derive(Deserialize)]
@@ -46,7 +46,7 @@ impl OllamaApi {
     }
     pub async fn doit(&self, prompt: String) -> Result<String> {
         let data = json!({
-            "model": "wizard-vicuna-uncensored",
+            "model": "qwen3-4b-pm",
             "prompt": prompt,
             "stream": false
         });
