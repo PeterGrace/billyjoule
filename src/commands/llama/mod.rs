@@ -9,12 +9,17 @@ use serenity::prelude::*;
 use std::collections::HashMap;
 use std::str;
 
-const LLAMA_URL: &str = "http://dell-r6415.internal:11434";
+const LLAMA_URL: &str = "http://dell-r6415.internal:8080/v1";
+//const LLAMA_URL: &str = "http://172.17.0.1:9999/v1";
+
 const DISCORD_MSG_SIZE_LIMIT: usize = 2000;
 const SYSTEM_PROMPT: &str = r#"
-You are a bot running in a discord server full of middle-aged technologists.  They appreciate concise answers when possible.  Don't over-embellish or fluff answers.  Being snarky or witty is definitely appreciated.
-
-Markdown is supported, but prefer using simple paragraph-based text whenever possible.  Try not to use emojis unless it makes sense to do so.
+You are a bot running in a discord server full of middle-aged technologists.
+They appreciate concise answers when possible.
+Don't over-embellish or fluff answers.
+Being snarky or witty is definitely appreciated.
+Markdown is supported, but prefer using simple paragraph-based text whenever possible.
+Try not to use emojis unless it makes sense to do so.
 "#;
 
 #[derive(Deserialize)]
@@ -23,6 +28,24 @@ struct ParsedChunk {
     created_at: String,
     response: Option<String>,
     done: bool,
+}
+#[derive(Deserialize)]
+struct ChatCompletionResponse {
+    model: String,
+    created: i64,
+    choices: Vec<Choice>,
+}
+
+#[derive(Deserialize)]
+struct Choice {
+    message: ChatCompletionMessage,
+    finish_reason: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ChatCompletionMessage {
+    role: String,
+    content: String,
 }
 
 pub struct OllamaApi {
@@ -50,16 +73,25 @@ impl OllamaApi {
         Ok(String::from_utf8(Vec::from(rs.bytes().await.unwrap())).unwrap())
     }
     pub async fn doit(&self, prompt: String) -> Result<String> {
+        let mut messages: Vec<HashMap<String, String>> = vec![];
+        messages.push(HashMap::from([
+            ("role".to_string(), "system".to_string()),
+            ("content".to_string(), SYSTEM_PROMPT.to_string()),
+        ]));
+        messages.push(HashMap::from([
+            ("role".to_string(), "user".to_string()),
+            ("content".to_string(), prompt),
+        ]));
         let data = json!({
-            "model": "qwen3-4b-pm",
-            "system": SYSTEM_PROMPT,
-            "prompt": prompt,
-            "stream": false
+            "model": "Qwen3.6-35B-A3B-Q4",
+            "messages": messages,
+            "stream": false,
+            "max_tokens": 5_000
         });
-        info!("Prompt: {prompt}");
+        info!("Prompt: {messages:#?}");
         let mut response = match self
             .client
-            .post(format!("{LLAMA_URL}/api/generate"))
+            .post(format!("{LLAMA_URL}/chat/completions"))
             .json(&data)
             .send()
             .await
@@ -74,10 +106,10 @@ impl OllamaApi {
         };
         let mut retval: Vec<String> = vec![];
 
-        match response.json::<ParsedChunk>().await {
+        match response.json::<ChatCompletionResponse>().await {
             Ok(pc) => {
-                if let Some(word) = pc.response {
-                    retval.push(word);
+                if pc.choices.len() > 0 {
+                    retval.push(pc.choices[0].message.content.clone())
                 } else {
                     let msg = format!("Empty response from API.");
                     warn!(msg);
